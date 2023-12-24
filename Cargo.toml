@@ -1,0 +1,9 @@
+[workspace]
+members = ["mosaic", "mosaic_ast", "mosaic_bytecode"]
+
+[workspace.package]
+authors = ["Mert Sefa AKGUN <git@msakg.com>"]
+description = "My own brand new language from scratch. Implemented in Rust by following Crafting Interpreters book."
+edition = "2021"
+keywords = ["interpreter", "language", "crafting-interpreters", "mosaic"]
+license = "Apache-2.0"
