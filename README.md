@@ -1,6 +1,5 @@
 # Mosaic
 
----
 ![Mosaic Logo](resources/logo.jpg)
 
 ## Description
@@ -9,4 +8,4 @@ Mosaic is a brand new programming language for educational purposes. Implementat
 
 The language, virtual machine and compiler are written in **Rust**, and the standard library is written in Mosaic itself.
 
-The name of programming language is Mosaic Script (or just Mosaic) and it's acronym is **mos**. Inspering by the acronym file extension of mosaic's source files named as `.mos`. For example `main.mos`, `hello_world.mos`, `merge_sort.mos` and etc.
+The name of programming language is Mosaic Script (or just Mosaic) and it's acronym is **msa** (**M**o**SA**ic). Inspering by the acronym file extension of mosaic's source files named as `.msa`. For example `main.msa`, `hello_world.msa`, `merge_sort.msa` and etc.
