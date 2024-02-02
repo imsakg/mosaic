@@ -95,10 +95,9 @@ impl Lexer {
                 }
             }
             // Ignore whitespaces
-            ' ' | '\r' | '\t' => self.scan_token(),
+            ' ' | '\r' | '\t' => {},
             '\n' => {
                 self.line += 1;
-                self.scan_token()
             }
 
             // Number Constants
@@ -192,7 +191,7 @@ impl Lexer {
             }
         }
 
-        let number = self.source[self.start + 1..self.current]
+        let number = self.source[self.start..self.current]
             .parse::<f64>()
             .unwrap();
         self.add_token_literal(TokenType::Number(number), Some(number.to_string()));
