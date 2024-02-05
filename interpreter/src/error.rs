@@ -1,38 +1,20 @@
-use crate::token::Token;
+//! Structured diagnostics shared by scanning, parsing and tree evaluation.
+use std::fmt;
 
-pub enum Error {
-    RuntimeError(RuntimeError),
-}
-
-pub struct RuntimeError {
-    pub token: Token,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Diagnostic {
+    pub phase: &'static str,
+    pub line: usize,
     pub message: String,
 }
-#[derive(Debug)]
-pub struct ErrorReporter {
-    had_error: bool,
-    had_runtime_error: bool,
-}
-
-impl ErrorReporter {
-    pub fn new() -> Self {
-        Self {
-            had_error: false,
-            had_runtime_error: false,
-        }
-    }
-
-    pub fn error(&mut self, line: usize, message: &str) {
-        self.report(line, "", message);
-    }
-
-    fn runtime_error(&mut self, error: RuntimeError) {
-        self.report(error.token.line, &error.message, &error.message);
-        self.had_runtime_error = true;
-    }
-
-    fn report(&mut self, line: usize, location: &str, message: &str) {
-        eprintln!("[line {}] Error{}: {}", line, location, message);
-        self.had_error = true;
+impl Diagnostic {
+    pub fn new(phase: &'static str, line: usize, message: impl Into<String>) -> Self {
+        Self { phase, line, message: message.into() }
     }
 }
+impl fmt::Display for Diagnostic {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[line {}] {} error: {}", self.line, self.phase, self.message)
+    }
+}
+impl std::error::Error for Diagnostic {}
