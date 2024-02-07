@@ -11,7 +11,7 @@ pub(crate) enum Value {
     Number(f64),
     String(Rc<str>),
     Object(Id),
-    Clock,
+    Native(&'static str),
 }
 impl Value {
     pub fn truthy(&self) -> bool {

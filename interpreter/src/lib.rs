@@ -1,6 +1,7 @@
 pub mod args;
 pub mod ast;
 pub mod build;
+mod builtins;
 pub mod error;
 pub mod gc;
 pub mod lexer;

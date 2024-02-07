@@ -3,7 +3,6 @@ use crate::ast::{Expr, ExprKind as E, Literal, Op, Stmt, StmtKind as S};
 use crate::error::Diagnostic;
 use crate::runtime::{Heap, HeapStats, Id, Object, Value};
 use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 type Result<T> = std::result::Result<T, Diagnostic>;
 #[derive(Debug)]
@@ -29,7 +28,10 @@ impl Interpreter {
         let mut heap = Heap::default();
         let environment = heap.allocate(Object::Environment {
             parent: None,
-            values: HashMap::from([("clock".into(), Value::Clock)]),
+            values: crate::builtins::NAMES
+                .iter()
+                .map(|&name| (name.into(), Value::Native(name)))
+                .collect(),
         });
         Self {
             heap,
@@ -367,13 +369,8 @@ impl Interpreter {
         Err(self.error(line, "Only instances have properties."))
     }
     fn call(&mut self, value: Value, args: Vec<Value>, line: usize) -> Result<Value> {
-        if value == Value::Clock {
-            self.arity(0, args.len(), line)?;
-            let seconds = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_err(|_| self.error(line, "System clock is before Unix epoch."))?
-                .as_secs_f64();
-            return Ok(Value::Number(seconds));
+        if let Value::Native(name) = value {
+            return crate::builtins::call(name, args, line);
         }
         if let Value::Object(id) = value {
             match self.heap.get(id).clone() {
@@ -458,7 +455,7 @@ impl Interpreter {
             Value::Bool(b) => b.to_string(),
             Value::Number(n) => n.to_string(),
             Value::String(s) => s.to_string(),
-            Value::Clock => "<native fn>".into(),
+            Value::Native(name) => format!("<native {name}>"),
             Value::Object(id) => match self.heap.get(*id) {
                 Object::Function { declaration, .. } => {
                     format!("<fn {}>", display_name(&declaration.name))
