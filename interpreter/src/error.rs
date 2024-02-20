@@ -9,12 +9,20 @@ pub struct Diagnostic {
 }
 impl Diagnostic {
     pub fn new(phase: &'static str, line: usize, message: impl Into<String>) -> Self {
-        Self { phase, line, message: message.into() }
+        Self {
+            phase,
+            line,
+            message: message.into(),
+        }
     }
 }
 impl fmt::Display for Diagnostic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[line {}] {} error: {}", self.line, self.phase, self.message)
+        write!(
+            f,
+            "[line {}] {} error: {}",
+            self.line, self.phase, self.message
+        )
     }
 }
 impl std::error::Error for Diagnostic {}
