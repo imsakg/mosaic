@@ -1,4 +1,5 @@
 pub mod args;
+pub mod ast;
 pub mod build;
 pub mod error;
 pub mod lexer;
