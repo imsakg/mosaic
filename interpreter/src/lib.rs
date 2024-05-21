@@ -5,7 +5,9 @@ pub mod error;
 pub mod lexer;
 pub mod parser;
 pub mod resolver;
+pub mod runtime;
 pub mod token;
+pub mod tree;
 
 /// Scan and parse a complete source unit without executing any of it.
 pub fn parse(source: &str) -> Result<Vec<ast::Stmt>, Vec<error::Diagnostic>> {
