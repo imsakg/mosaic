@@ -2,6 +2,7 @@ pub mod args;
 pub mod ast;
 pub mod build;
 pub mod error;
+pub mod gc;
 pub mod lexer;
 pub mod parser;
 pub mod resolver;
