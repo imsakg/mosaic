@@ -1,5 +1,6 @@
 [workspace]
-members = ["mosaic", "mosaic_ast", "mosaic_bytecode"]
+members = ["interpreter"]
+resolver = "2"
 
 [workspace.package]
 authors = ["Mert Sefa AKGUN <git@msakg.com>"]
