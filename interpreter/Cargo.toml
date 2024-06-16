@@ -8,3 +8,12 @@ keywords.workspace = true
 license.workspace = true
 
 [dependencies]
+anyhow = "1.0.86"
+chrono = "0.4.38"
+clap = { version = "4.5.7", features = ["derive", "wrap_help"] }
+lazy_static = "1.4.0"
+rustc_version_runtime = "0.3.0"
+rustyline = { version = "14.0.0", features = ["case_insensitive_history_search", "with-file-history"] }
+serde = { version = "1.0.203", features = ["derive"] }
+sysexits = "0.8.0"
+thiserror = "1.0.61"
