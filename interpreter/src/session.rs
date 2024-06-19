@@ -1,0 +1,63 @@
+//! Backend-neutral persistent execution state for CLI and embedding.
+use crate::{args::Backend, tree::Interpreter, vm::Vm};
+
+#[derive(Debug)]
+pub struct RunError {
+    pub code: u8,
+    pub messages: Vec<String>,
+    pub output: Vec<String>,
+}
+pub struct Session {
+    backend: Backend,
+    tree: Interpreter,
+    vm: Vm,
+}
+impl Session {
+    pub fn new(backend: Backend, gc_stress: bool) -> Self {
+        let mut vm = Vm::new();
+        vm.set_gc_stress(gc_stress);
+        Self {
+            backend,
+            tree: Interpreter::new(),
+            vm,
+        }
+    }
+    pub fn run(&mut self, source: &str) -> Result<Vec<String>, RunError> {
+        match self.backend {
+            Backend::Tree => self.tree.run(source).map_err(|errors| RunError {
+                code: if errors.iter().any(|e| e.phase == "Runtime") {
+                    70
+                } else {
+                    65
+                },
+                messages: errors.iter().map(ToString::to_string).collect(),
+                output: self.tree.output().to_vec(),
+            }),
+            Backend::Vm => {
+                let statements = crate::parse(source).map_err(compile_errors)?;
+                self.vm.run(&statements).map_err(|message| RunError {
+                    code: if message.contains("Compile error:") {
+                        65
+                    } else {
+                        70
+                    },
+                    messages: vec![message],
+                    output: Vec::new(),
+                })
+            }
+        }
+    }
+    pub fn stats(&self) -> String {
+        match self.backend {
+            Backend::Tree => format!("tree heap: {:?}", self.tree.heap_stats()),
+            Backend::Vm => format!("VM strings: {:?}", self.vm.gc_stats()),
+        }
+    }
+}
+pub fn compile_errors(errors: Vec<crate::error::Diagnostic>) -> RunError {
+    RunError {
+        code: 65,
+        messages: errors.iter().map(ToString::to_string).collect(),
+        output: Vec::new(),
+    }
+}
