@@ -22,6 +22,3 @@ pub fn parse(source: &str) -> Result<Vec<ast::Stmt>, Vec<error::Diagnostic>> {
     }
     parser::Parser::new(tokens).parse()
 }
-
-#[macro_use]
-pub extern crate lazy_static;
