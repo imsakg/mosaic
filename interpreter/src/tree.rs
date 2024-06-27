@@ -17,6 +17,7 @@ pub struct Interpreter {
     environment: Id,
     output: Vec<String>,
     call_depth: usize,
+    evaluation_depth: usize,
 }
 impl Default for Interpreter {
     fn default() -> Self {
@@ -35,6 +36,7 @@ impl Interpreter {
             environment,
             output: Vec::new(),
             call_depth: 0,
+            evaluation_depth: 0,
         }
     }
     /// Compile an entire source unit first. Globals survive both success and errors.
@@ -211,6 +213,15 @@ impl Interpreter {
         Ok(Flow::Normal)
     }
     fn evaluate(&mut self, e: &Expr) -> Result<Value> {
+        if self.evaluation_depth >= 128 {
+            return Err(self.error(e.line, "Evaluation depth limit exceeded."));
+        }
+        self.evaluation_depth += 1;
+        let result = self.evaluate_inner(e);
+        self.evaluation_depth -= 1;
+        result
+    }
+    fn evaluate_inner(&mut self, e: &Expr) -> Result<Value> {
         let line = e.line;
         match &e.kind {
             E::Literal(l) => Ok(match l {
