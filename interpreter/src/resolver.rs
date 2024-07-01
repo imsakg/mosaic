@@ -51,14 +51,14 @@ impl Resolver {
             }
         }
     }
-    fn reference(&mut self, name: &mut String, line: usize, read: bool) {
+    fn reference(&mut self, name: &mut String, line: usize, _read: bool) {
         for scope in self.scopes.iter().rev() {
             if let Some((key, ready)) = scope.get(name) {
-                if read && !ready {
+                if !ready {
                     self.errors.push(Diagnostic::new(
                         "Resolve",
                         line,
-                        "Cannot read local variable in its own initializer.",
+                        "Cannot read or assign local variable in its own initializer.",
                     ));
                 }
                 *name = key.clone();
