@@ -34,7 +34,10 @@ pub fn needs_more(source: &str) -> bool {
         }
         last = Some(token.token_type);
     }
-    parens > 0 || braces > 0 || last.is_some_and(|t| !matches!(t, T::Semicolon | T::RightBrace))
+    parens > 0
+        || braces > 0
+        || (!source.trim_start().starts_with('=')
+            && last.is_some_and(|t| !matches!(t, T::Semicolon | T::RightBrace)))
 }
 fn evaluate(
     session: &mut Session,
@@ -42,10 +45,19 @@ fn evaluate(
     out: &mut impl Write,
     err: &mut impl Write,
 ) -> io::Result<()> {
-    let transformed = source
-        .trim()
-        .strip_prefix('=')
-        .map(|s| format!("print {};", s.trim_end_matches(';')));
+    let transformed = source.trim_start().strip_prefix('=').map(|expression| {
+        let tokens = Lexer::new(expression.into()).scan_tokens();
+        let terminated = tokens
+            .iter()
+            .rev()
+            .find(|t| t.token_type != T::EOF)
+            .is_some_and(|t| t.token_type == T::Semicolon);
+        if terminated {
+            format!("print {expression}")
+        } else {
+            format!("print {expression}\n;")
+        }
+    });
     let result = session.run(transformed.as_deref().unwrap_or(source));
     let (output, messages) = match result {
         Ok(output) => (output, Vec::new()),
@@ -95,10 +107,6 @@ pub fn run(
                 }
                 s if s.starts_with(':') => {
                     writeln!(err, "Unknown REPL command. Type :help.")?;
-                    continue;
-                }
-                s if s.starts_with('=') => {
-                    evaluate(session, &line, &mut out, &mut err)?;
                     continue;
                 }
                 _ => {}
