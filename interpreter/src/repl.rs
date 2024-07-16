@@ -71,6 +71,20 @@ fn evaluate(
     }
     Ok(())
 }
+fn accepts_else(source: &str) -> bool {
+    use crate::ast::{Stmt, StmtKind};
+    fn dangling(statement: &Stmt) -> bool {
+        match &statement.kind {
+            StmtKind::If(_, _, None) => true,
+            StmtKind::If(_, _, Some(other)) | StmtKind::While(_, other) => dangling(other),
+            _ => false,
+        }
+    }
+    crate::parse(source)
+        .ok()
+        .and_then(|ss| ss.last().map(dangling))
+        .unwrap_or(false)
+}
 pub fn run(
     mut input: impl BufRead,
     mut out: impl Write,
@@ -79,6 +93,7 @@ pub fn run(
     prompt: bool,
 ) -> io::Result<()> {
     let mut pending = String::new();
+    let mut awaiting_else = false;
     loop {
         if prompt {
             write!(out, "{}", if pending.is_empty() { ">> " } else { ".. " })?;
@@ -90,6 +105,19 @@ pub fn run(
                 evaluate(session, &pending, &mut out, &mut err)?;
             }
             return Ok(());
+        }
+        if awaiting_else {
+            let tokens = Lexer::new(line.clone()).scan_tokens();
+            let first = &tokens[0].token_type;
+            if *first == T::EOF && !line.trim().is_empty() {
+                pending.push_str(&line);
+                continue;
+            }
+            awaiting_else = false;
+            if *first != T::Else {
+                evaluate(session, &pending, &mut out, &mut err)?;
+                pending.clear();
+            }
         }
         if pending.is_empty() {
             match line.trim() {
@@ -114,6 +142,10 @@ pub fn run(
         }
         pending.push_str(&line);
         if !needs_more(&pending) {
+            if accepts_else(&pending) {
+                awaiting_else = true;
+                continue;
+            }
             evaluate(session, &pending, &mut out, &mut err)?;
             pending.clear();
         }
