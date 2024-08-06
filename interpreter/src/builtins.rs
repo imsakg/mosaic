@@ -87,6 +87,7 @@ fn decimal_string(text: &str) -> bool {
 }
 
 pub(crate) const NAMES: &[&str] = &[
+    "contains",
     "starts_with",
     "ends_with",
     "lower",
@@ -251,14 +252,14 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
             };
             Ok(Value::String(result.into()))
         }
-        "starts_with" | "ends_with" => {
+        "starts_with" | "ends_with" | "contains" => {
             expect_arity(name, &args, 2, line)?;
             let text = string_arg(name, &args[0], 1, line)?;
             let pattern = string_arg(name, &args[1], 2, line)?;
-            Ok(Value::Bool(if name == "starts_with" {
-                text.starts_with(pattern)
-            } else {
-                text.ends_with(pattern)
+            Ok(Value::Bool(match name {
+                "starts_with" => text.starts_with(pattern),
+                "ends_with" => text.ends_with(pattern),
+                _ => text.contains(pattern),
             }))
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),

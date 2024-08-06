@@ -311,4 +311,25 @@ fn prefix_and_suffix_require_two_strings() {
     }
 }
 
+#[test]
+fn contains_searches_literal_case_sensitive_substrings() {
+    assert_eq!(
+        output(
+            r#"print contains("a.b 🦀 café", ".b"); print contains("a.b 🦀 café", "🦀"); print contains("abc", ".*"); print contains("Hello", "hello"); print contains("abc", ""); print contains("", "x"); print contains("", "");"#
+        ),
+        ["true", "true", "false", "false", "true", "false", "true"]
+    );
+}
+
+#[test]
+fn contains_checks_arity_and_each_string_argument() {
+    assert!(runtime_error("contains();").message.contains("Expected 2"));
+    assert!(runtime_error("contains(nil, \"x\");")
+        .message
+        .contains("argument 1 must be a string"));
+    assert!(runtime_error("contains(\"x\", 1);")
+        .message
+        .contains("argument 2 must be a string"));
+}
+
 // More regression cases follow.
