@@ -34,7 +34,7 @@ fn number_arg(name: &str, value: &Value, position: usize, line: usize) -> Result
     }
 }
 
-pub(crate) const NAMES: &[&str] = &["clock", "abs"];
+pub(crate) const NAMES: &[&str] = &["floor", "ceil", "trunc", "clock", "abs"];
 
 pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
     let error = |message: String| Diagnostic::new("Runtime", line, message);
@@ -55,6 +55,16 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
         "abs" => {
             expect_arity(name, &args, 1, line)?;
             Ok(Value::Number(number_arg(name, &args[0], 1, line)?.abs()))
+        }
+        "floor" | "ceil" | "trunc" => {
+            expect_arity(name, &args, 1, line)?;
+            let number = number_arg(name, &args[0], 1, line)?;
+            let result = match name {
+                "floor" => number.floor(),
+                "ceil" => number.ceil(),
+                _ => number.trunc(),
+            };
+            Ok(Value::Number(result))
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }
