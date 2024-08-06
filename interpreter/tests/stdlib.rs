@@ -362,4 +362,48 @@ fn replace_empty_pattern_uses_unicode_scalar_boundaries() {
     }
 }
 
+#[test]
+fn repeat_accepts_nonnegative_integral_counts_and_preserves_utf8() {
+    assert_eq!(
+        output(
+            r#"print repeat("é🦀", 2); print repeat("x", 0); print repeat("", 3); print repeat("x", -0); print repeat("", number("1e300"));"#
+        ),
+        ["é🦀é🦀", "", "", "", ""]
+    );
+}
+
+#[test]
+fn repeat_rejects_invalid_counts_before_allocating() {
+    for operand in ["-1", "1.5", "1 / 0", "-1 / 0", "0 / 0"] {
+        let error = runtime_error(&format!("\nrepeat(\"x\", {operand});"));
+        assert_eq!(error.line, 2);
+        assert!(
+            error
+                .message
+                .contains("repeat count must be a finite nonnegative integer"),
+            "{error}"
+        );
+    }
+    assert!(runtime_error("repeat(\"x\", \"2\");")
+        .message
+        .contains("argument 2 must be a number"));
+}
+
+#[test]
+fn repeat_enforces_a_one_mebibyte_utf8_output_limit() {
+    let ascii = output("print repeat(\"a\", 1048576);");
+    assert_eq!(ascii[0].len(), 1_048_576);
+    let unicode = output("print repeat(\"🦀\", 262144);");
+    assert_eq!(unicode[0].len(), 1_048_576);
+    for call in [
+        "repeat(\"a\", 1048577)",
+        "repeat(\"🦀\", 262145)",
+        "repeat(\"a\", number(\"1e300\"))",
+    ] {
+        assert!(runtime_error(&format!("{call};"))
+            .message
+            .contains("exceeds 1048576 UTF-8 bytes"));
+    }
+}
+
 // More regression cases follow.

@@ -87,6 +87,7 @@ fn decimal_string(text: &str) -> bool {
 }
 
 pub(crate) const NAMES: &[&str] = &[
+    "repeat",
     "replace",
     "contains",
     "starts_with",
@@ -269,6 +270,28 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
             let pattern = string_arg(name, &args[1], 2, line)?;
             let replacement = string_arg(name, &args[2], 3, line)?;
             Ok(Value::String(text.replace(pattern, replacement).into()))
+        }
+        "repeat" => {
+            const MAX_BYTES: usize = 1_048_576;
+            expect_arity(name, &args, 2, line)?;
+            let text = string_arg(name, &args[0], 1, line)?;
+            let count = number_arg(name, &args[1], 2, line)?;
+            if !count.is_finite() || count < 0.0 || count.fract() != 0.0 {
+                return Err(error(
+                    "repeat count must be a finite nonnegative integer.".into(),
+                ));
+            }
+            // Empty strings need no allocation, even for counts beyond usize.
+            if text.is_empty() || count == 0.0 {
+                return Ok(Value::String("".into()));
+            }
+            // Divide before converting/multiplying so neither casts nor byte sizes overflow.
+            if count > (MAX_BYTES / text.len()) as f64 {
+                return Err(error(format!(
+                    "repeat result exceeds {MAX_BYTES} UTF-8 bytes."
+                )));
+            }
+            Ok(Value::String(text.repeat(count as usize).into()))
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }
