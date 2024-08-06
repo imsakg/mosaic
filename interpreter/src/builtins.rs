@@ -34,7 +34,44 @@ fn number_arg(name: &str, value: &Value, position: usize, line: usize) -> Result
     }
 }
 
+// Require a complete ASCII decimal, not Rust's special NaN/inf spellings.
+fn decimal_string(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let mut index = usize::from(matches!(bytes.first(), Some(b'+' | b'-')));
+    let start = index;
+    while matches!(bytes.get(index), Some(b'0'..=b'9')) {
+        index += 1;
+    }
+    let mut digits = index - start;
+    if bytes.get(index) == Some(&b'.') {
+        index += 1;
+        let start = index;
+        while matches!(bytes.get(index), Some(b'0'..=b'9')) {
+            index += 1;
+        }
+        digits += index - start;
+    }
+    if digits == 0 {
+        return false;
+    }
+    if matches!(bytes.get(index), Some(b'e' | b'E')) {
+        index += 1;
+        if matches!(bytes.get(index), Some(b'+' | b'-')) {
+            index += 1;
+        }
+        let start = index;
+        while matches!(bytes.get(index), Some(b'0'..=b'9')) {
+            index += 1;
+        }
+        if index == start {
+            return false;
+        }
+    }
+    index == bytes.len()
+}
+
 pub(crate) const NAMES: &[&str] = &[
+    "number",
     "is_nan",
     "is_finite",
     "log",
@@ -156,6 +193,26 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
             } else {
                 number.is_finite()
             }))
+        }
+        "number" => {
+            expect_arity(name, &args, 1, line)?;
+            match &args[0] {
+                Value::Number(number) => Ok(Value::Number(*number)),
+                Value::String(text) => {
+                    let parsed = if decimal_string(text) {
+                        text.parse::<f64>().ok()
+                    } else {
+                        None
+                    };
+                    match parsed.filter(|number| number.is_finite()) {
+                        Some(number) => Ok(Value::Number(number)),
+                        None => Err(error("number requires a finite decimal string.".into())),
+                    }
+                }
+                _ => Err(error(
+                    "number argument 1 must be a number or string.".into(),
+                )),
+            }
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }

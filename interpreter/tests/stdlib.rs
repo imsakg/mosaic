@@ -210,4 +210,34 @@ fn numeric_predicates_are_strict_instead_of_coercing() {
     }
 }
 
+#[test]
+fn number_parses_complete_decimal_strings_and_preserves_numeric_inputs() {
+    assert_eq!(
+        output(
+            r#"print number("42"); print number("+1.25e2"); print number(".5"); print number("5."); print number("-2E-2"); print 1 / number("-0"); print number(7); print is_nan(number(0 / 0)); print number(1 / 0);"#
+        ),
+        ["42", "125", "0.5", "5", "-0.02", "-inf", "7", "true", "inf"]
+    );
+}
+
+#[test]
+fn number_rejects_whitespace_partial_and_nonfinite_string_conversions() {
+    for text in [
+        "", " ", " 1", "1 ", "1x", "1_000", "0x10", "NaN", "inf", "Infinity", "1e9999", "+", ".",
+        "1e", "1e+", "--1", "١", "1\n", "1.2.3",
+    ] {
+        let error = runtime_error(&format!("\nnumber(\"{text}\");"));
+        assert!(
+            error
+                .message
+                .contains("number requires a finite decimal string"),
+            "{text:?}: {error}"
+        );
+    }
+    assert!(runtime_error("number(nil);")
+        .message
+        .contains("number argument 1 must be a number or string"));
+    assert!(runtime_error("number();").message.contains("Expected 1"));
+}
+
 // More regression cases follow.
