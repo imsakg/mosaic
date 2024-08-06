@@ -87,6 +87,7 @@ fn decimal_string(text: &str) -> bool {
 }
 
 pub(crate) const NAMES: &[&str] = &[
+    "assert",
     "char_at",
     "repeat",
     "replace",
@@ -311,6 +312,27 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                 Some(character) => Value::String(character.to_string().into()),
                 None => Value::Nil,
             })
+        }
+        "assert" => {
+            if !(1..=2).contains(&args.len()) {
+                return Err(error(format!(
+                    "assert: Expected 1 or 2 arguments but got {}.",
+                    args.len()
+                )));
+            }
+            let message = if args.len() == 2 {
+                Some(string_arg(name, &args[1], 2, line)?)
+            } else {
+                None
+            };
+            if args[0].truthy() {
+                Ok(Value::Nil)
+            } else {
+                Err(error(match message {
+                    Some(message) => format!("Assertion failed: {message}"),
+                    None => "Assertion failed.".into(),
+                }))
+            }
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }

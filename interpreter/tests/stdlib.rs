@@ -439,4 +439,38 @@ fn char_at_rejects_invalid_indices_and_argument_types() {
         .contains("Expected 2"));
 }
 
+#[test]
+fn assert_returns_nil_and_uses_mosaic_truthiness() {
+    assert_eq!(
+        output(
+            r#"print assert(true); print assert(0); print assert(""); print assert("ok", "unused");"#
+        ),
+        ["nil", "nil", "nil", "nil"]
+    );
+}
+
+#[test]
+fn assert_failures_report_optional_messages_at_the_call_site() {
+    for condition in ["false", "nil"] {
+        let error = runtime_error(&format!("\n\nassert({condition});"));
+        assert_eq!(error.line, 3);
+        assert_eq!(error.message, "Assertion failed.");
+    }
+    let error = runtime_error("\nassert(false, \"expected café 🦀\");");
+    assert_eq!(error.line, 2);
+    assert_eq!(error.message, "Assertion failed: expected café 🦀");
+}
+
+#[test]
+fn assert_validates_optional_message_even_when_condition_is_truthy() {
+    for condition in ["true", "false"] {
+        assert!(runtime_error(&format!("assert({condition}, 42);"))
+            .message
+            .contains("assert argument 2 must be a string"));
+    }
+    for source in ["assert();", "assert(true, \"x\", nil);"] {
+        assert!(runtime_error(source).message.contains("Expected 1 or 2"));
+    }
+}
+
 // More regression cases follow.
