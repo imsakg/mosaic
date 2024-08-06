@@ -258,4 +258,32 @@ fn trim_requires_one_string_without_implicit_conversion() {
     assert!(runtime_error("trim();").message.contains("Expected 1"));
 }
 
+#[test]
+fn lower_and_upper_apply_locale_independent_unicode_case_mapping() {
+    assert_eq!(
+        output(
+            r#"print lower("CAFÉ Ω"); print upper("straße"); print lower("İ"); print lower("ΟΣ"); print upper("hello 🦀"); print lower(""); print upper("");"#
+        ),
+        ["café ω", "STRASSE", "i\u{307}", "ος", "HELLO 🦀", "", ""]
+    );
+}
+
+#[test]
+fn case_conversion_requires_strings_and_leaves_original_values_unchanged() {
+    assert_eq!(
+        output(
+            r#"var original = "Straße"; var changed = upper(original); print original; print changed;"#
+        ),
+        ["Straße", "STRASSE"]
+    );
+    for name in ["lower", "upper"] {
+        assert!(runtime_error(&format!("{name}(false);"))
+            .message
+            .contains("must be a string"));
+        assert!(runtime_error(&format!("{name}(\"x\", \"y\");"))
+            .message
+            .contains("Expected 1"));
+    }
+}
+
 // More regression cases follow.

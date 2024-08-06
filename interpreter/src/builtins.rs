@@ -87,6 +87,8 @@ fn decimal_string(text: &str) -> bool {
 }
 
 pub(crate) const NAMES: &[&str] = &[
+    "lower",
+    "upper",
     "trim",
     "number",
     "is_nan",
@@ -236,6 +238,16 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
             Ok(Value::String(
                 string_arg(name, &args[0], 1, line)?.trim().into(),
             ))
+        }
+        "lower" | "upper" => {
+            expect_arity(name, &args, 1, line)?;
+            let text = string_arg(name, &args[0], 1, line)?;
+            let result = if name == "lower" {
+                text.to_lowercase()
+            } else {
+                text.to_uppercase()
+            };
+            Ok(Value::String(result.into()))
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }
