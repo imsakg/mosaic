@@ -34,6 +34,22 @@ fn number_arg(name: &str, value: &Value, position: usize, line: usize) -> Result
     }
 }
 
+fn string_arg<'a>(
+    name: &str,
+    value: &'a Value,
+    position: usize,
+    line: usize,
+) -> Result<&'a str, Diagnostic> {
+    match value {
+        Value::String(text) => Ok(text),
+        _ => Err(Diagnostic::new(
+            "Runtime",
+            line,
+            format!("{name} argument {position} must be a string."),
+        )),
+    }
+}
+
 // Require a complete ASCII decimal, not Rust's special NaN/inf spellings.
 fn decimal_string(text: &str) -> bool {
     let bytes = text.as_bytes();
@@ -71,6 +87,7 @@ fn decimal_string(text: &str) -> bool {
 }
 
 pub(crate) const NAMES: &[&str] = &[
+    "trim",
     "number",
     "is_nan",
     "is_finite",
@@ -213,6 +230,12 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                     "number argument 1 must be a number or string.".into(),
                 )),
             }
+        }
+        "trim" => {
+            expect_arity(name, &args, 1, line)?;
+            Ok(Value::String(
+                string_arg(name, &args[0], 1, line)?.trim().into(),
+            ))
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }

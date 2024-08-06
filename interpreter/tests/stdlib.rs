@@ -240,4 +240,22 @@ fn number_rejects_whitespace_partial_and_nonfinite_string_conversions() {
     assert!(runtime_error("number();").message.contains("Expected 1"));
 }
 
+#[test]
+fn trim_removes_unicode_whitespace_only_at_string_edges() {
+    assert_eq!(output("print trim(\" \\t hello world \\r\\n\"); print trim(\"\u{2003}café\u{00a0}\"); print trim(\"a  b\"); print trim(\"\"); print trim(\" \\n\");"),
+        ["hello world", "café", "a  b", "", ""]);
+    assert_eq!(
+        output("print trim(\"\u{200b}x\u{200b}\");"),
+        ["\u{200b}x\u{200b}"]
+    );
+}
+
+#[test]
+fn trim_requires_one_string_without_implicit_conversion() {
+    assert!(runtime_error("trim(1);")
+        .message
+        .contains("trim argument 1 must be a string"));
+    assert!(runtime_error("trim();").message.contains("Expected 1"));
+}
+
 // More regression cases follow.
