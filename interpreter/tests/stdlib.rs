@@ -473,4 +473,26 @@ fn assert_validates_optional_message_even_when_condition_is_truthy() {
     }
 }
 
+fn check_documented_examples(document: &str) {
+    let mut blocks = 0;
+    for block in document.split("```msa\n").skip(1) {
+        let (source, _) = block.split_once("\n```").expect("closed msa code fence");
+        let expected: Vec<_> = source
+            .lines()
+            .filter_map(|line| line.split_once("// => ").map(|(_, expected)| expected))
+            .collect();
+        assert_eq!(output(source), expected, "documentation block:\n{source}");
+        blocks += 1;
+    }
+    assert!(
+        blocks > 0,
+        "documentation must contain executable msa examples"
+    );
+}
+
+#[test]
+fn numeric_api_documentation_examples_are_executable() {
+    check_documented_examples(include_str!("../../docs/stdlib-math.md"));
+}
+
 // More regression cases follow.
