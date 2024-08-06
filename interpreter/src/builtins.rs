@@ -87,6 +87,7 @@ fn decimal_string(text: &str) -> bool {
 }
 
 pub(crate) const NAMES: &[&str] = &[
+    "replace",
     "contains",
     "starts_with",
     "ends_with",
@@ -261,6 +262,13 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                 "ends_with" => text.ends_with(pattern),
                 _ => text.contains(pattern),
             }))
+        }
+        "replace" => {
+            expect_arity(name, &args, 3, line)?;
+            let text = string_arg(name, &args[0], 1, line)?;
+            let pattern = string_arg(name, &args[1], 2, line)?;
+            let replacement = string_arg(name, &args[2], 3, line)?;
+            Ok(Value::String(text.replace(pattern, replacement).into()))
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }

@@ -332,4 +332,34 @@ fn contains_checks_arity_and_each_string_argument() {
         .contains("argument 2 must be a string"));
 }
 
+#[test]
+fn replace_substitutes_all_nonoverlapping_literal_matches() {
+    assert_eq!(
+        output(
+            r#"print replace("aaaaa", "aa", "b"); print replace("a.b.a", ".", "$1"); print replace("🦀x🦀", "🦀", "café"); print replace("abc", "z", "x"); print replace("banana", "na", "");"#
+        ),
+        ["bba", "a$1b$1a", "caféxcafé", "abc", "ba"]
+    );
+}
+
+#[test]
+fn replace_empty_pattern_uses_unicode_scalar_boundaries() {
+    assert_eq!(
+        output(r#"print replace("é🦀", "", "-"); print replace("", "", "x");"#),
+        ["-é-🦀-", "x"]
+    );
+    assert!(runtime_error("replace(\"x\", \"x\");")
+        .message
+        .contains("Expected 3"));
+    for (source, position) in [
+        ("replace(1, \"x\", \"y\");", 1),
+        ("replace(\"x\", nil, \"y\");", 2),
+        ("replace(\"x\", \"x\", false);", 3),
+    ] {
+        assert!(runtime_error(source)
+            .message
+            .contains(&format!("argument {position} must be a string")));
+    }
+}
+
 // More regression cases follow.
