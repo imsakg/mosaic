@@ -35,7 +35,7 @@ fn number_arg(name: &str, value: &Value, position: usize, line: usize) -> Result
 }
 
 pub(crate) const NAMES: &[&str] = &[
-    "min", "max", "round", "floor", "ceil", "trunc", "clock", "abs",
+    "sqrt", "min", "max", "round", "floor", "ceil", "trunc", "clock", "abs",
 ];
 
 pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
@@ -95,6 +95,14 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                 left.max(right)
             };
             Ok(Value::Number(result))
+        }
+        "sqrt" => {
+            expect_arity(name, &args, 1, line)?;
+            let number = number_arg(name, &args[0], 1, line)?;
+            if number < 0.0 {
+                return Err(error("sqrt requires a nonnegative number.".into()));
+            }
+            Ok(Value::Number(number.sqrt()))
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }

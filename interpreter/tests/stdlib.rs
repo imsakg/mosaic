@@ -100,4 +100,25 @@ fn min_and_max_propagate_nan_and_choose_signed_zero_consistently() {
         ["-inf", "-inf", "inf", "inf"]);
 }
 
+#[test]
+fn sqrt_accepts_nonnegative_numbers_and_preserves_special_values() {
+    assert_eq!(output("print sqrt(9); print sqrt(0.25); print sqrt(1 / 0); print 1 / sqrt(-0); print sqrt(0 / 0) == 0;"),
+        ["3", "0.5", "inf", "-inf", "false"]);
+}
+
+#[test]
+fn sqrt_rejects_negative_domain_with_a_source_line() {
+    for operand in ["-1", "-1 / 0"] {
+        let error = runtime_error(&format!("\n\nsqrt({operand});"));
+        assert_eq!(error.line, 3);
+        assert!(
+            error.message.contains("sqrt requires a nonnegative number"),
+            "{error}"
+        );
+    }
+    assert!(runtime_error("sqrt(\"9\");")
+        .message
+        .contains("must be a number"));
+}
+
 // More regression cases follow.
