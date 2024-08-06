@@ -163,4 +163,31 @@ fn trigonometry_handles_nan_infinity_and_wrong_types() {
     }
 }
 
+#[test]
+fn log_and_exp_are_natural_inverses() {
+    assert_eq!(output("print log(1); print exp(0); print abs(log(exp(2)) - 2) < 0.000000000001; print abs(exp(log(4)) - 4) < 0.000000000001; print exp(-1 / 0); print exp(1000); print log(1 / 0);"),
+        ["0", "1", "true", "true", "0", "inf", "inf"]);
+    assert_eq!(
+        output("var x = log(0 / 0); print x == x; var y = exp(0 / 0); print y == y;"),
+        ["false", "false"]
+    );
+}
+
+#[test]
+fn log_requires_a_positive_domain_and_both_functions_require_numbers() {
+    for operand in ["0", "-0", "-1", "-1 / 0"] {
+        let error = runtime_error(&format!("\nlog({operand});"));
+        assert_eq!(error.line, 2);
+        assert!(
+            error.message.contains("log requires a positive number"),
+            "{error}"
+        );
+    }
+    for name in ["log", "exp"] {
+        assert!(runtime_error(&format!("{name}(\"1\");"))
+            .message
+            .contains("must be a number"));
+    }
+}
+
 // More regression cases follow.

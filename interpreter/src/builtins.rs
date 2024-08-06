@@ -35,8 +35,8 @@ fn number_arg(name: &str, value: &Value, position: usize, line: usize) -> Result
 }
 
 pub(crate) const NAMES: &[&str] = &[
-    "sin", "cos", "tan", "pow", "sqrt", "min", "max", "round", "floor", "ceil", "trunc", "clock",
-    "abs",
+    "log", "exp", "sin", "cos", "tan", "pow", "sqrt", "min", "max", "round", "floor", "ceil",
+    "trunc", "clock", "abs",
 ];
 
 pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
@@ -120,6 +120,18 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                 _ => number.tan(),
             };
             Ok(Value::Number(result))
+        }
+        "log" | "exp" => {
+            expect_arity(name, &args, 1, line)?;
+            let number = number_arg(name, &args[0], 1, line)?;
+            if name == "log" && number <= 0.0 {
+                return Err(error("log requires a positive number.".into()));
+            }
+            Ok(Value::Number(if name == "log" {
+                number.ln()
+            } else {
+                number.exp()
+            }))
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }
