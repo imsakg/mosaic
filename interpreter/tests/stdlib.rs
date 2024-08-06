@@ -495,4 +495,9 @@ fn numeric_api_documentation_examples_are_executable() {
     check_documented_examples(include_str!("../../docs/stdlib-math.md"));
 }
 
+#[test]
+fn string_api_documentation_examples_are_executable() {
+    check_documented_examples(include_str!("../../docs/stdlib-strings.md"));
+}
+
 // More regression cases follow.
