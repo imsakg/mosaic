@@ -141,4 +141,26 @@ fn pow_exposes_ieee_domains_and_validates_both_operands() {
     assert!(runtime_error("pow(2);").message.contains("Expected 2"));
 }
 
+#[test]
+fn trigonometry_uses_radians_with_floating_point_tolerance() {
+    assert_eq!(output("var pi = 3.141592653589793; print abs(sin(pi / 2) - 1) < 0.000000000001; print abs(cos(pi) + 1) < 0.000000000001; print abs(tan(pi / 4) - 1) < 0.000000000001; print sin(0); print cos(0); print tan(0);"),
+        ["true", "true", "true", "0", "1", "0"]);
+}
+
+#[test]
+fn trigonometry_handles_nan_infinity_and_wrong_types() {
+    for name in ["sin", "cos", "tan"] {
+        assert_eq!(
+            output(&format!("var x = {name}(1 / 0); print x == x;")),
+            ["false"]
+        );
+        assert!(runtime_error(&format!("{name}(false);"))
+            .message
+            .contains("must be a number"));
+        assert!(runtime_error(&format!("{name}();"))
+            .message
+            .contains("Expected 1"));
+    }
+}
+
 // More regression cases follow.

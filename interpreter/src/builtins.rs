@@ -35,7 +35,8 @@ fn number_arg(name: &str, value: &Value, position: usize, line: usize) -> Result
 }
 
 pub(crate) const NAMES: &[&str] = &[
-    "pow", "sqrt", "min", "max", "round", "floor", "ceil", "trunc", "clock", "abs",
+    "sin", "cos", "tan", "pow", "sqrt", "min", "max", "round", "floor", "ceil", "trunc", "clock",
+    "abs",
 ];
 
 pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
@@ -109,6 +110,16 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
             let base = number_arg(name, &args[0], 1, line)?;
             let exponent = number_arg(name, &args[1], 2, line)?;
             Ok(Value::Number(base.powf(exponent)))
+        }
+        "sin" | "cos" | "tan" => {
+            expect_arity(name, &args, 1, line)?;
+            let number = number_arg(name, &args[0], 1, line)?;
+            let result = match name {
+                "sin" => number.sin(),
+                "cos" => number.cos(),
+                _ => number.tan(),
+            };
+            Ok(Value::Number(result))
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }
