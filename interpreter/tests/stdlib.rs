@@ -286,4 +286,29 @@ fn case_conversion_requires_strings_and_leaves_original_values_unchanged() {
     }
 }
 
+#[test]
+fn prefix_and_suffix_predicates_match_literal_unicode_strings() {
+    assert_eq!(
+        output(
+            r#"print starts_with("café 🦀", "café"); print ends_with("café 🦀", "🦀"); print starts_with("Hello", "he"); print ends_with("abc", "bcx"); print starts_with("", ""); print ends_with("abc", ""); print starts_with("é", "e");"#
+        ),
+        ["true", "true", "false", "false", "true", "true", "false"]
+    );
+}
+
+#[test]
+fn prefix_and_suffix_require_two_strings() {
+    for name in ["starts_with", "ends_with"] {
+        assert!(runtime_error(&format!("{name}(\"a\");"))
+            .message
+            .contains("Expected 2"));
+        assert!(runtime_error(&format!("{name}(1, \"a\");"))
+            .message
+            .contains("argument 1 must be a string"));
+        assert!(runtime_error(&format!("{name}(\"a\", nil);"))
+            .message
+            .contains("argument 2 must be a string"));
+    }
+}
+
 // More regression cases follow.

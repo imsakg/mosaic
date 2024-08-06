@@ -87,6 +87,8 @@ fn decimal_string(text: &str) -> bool {
 }
 
 pub(crate) const NAMES: &[&str] = &[
+    "starts_with",
+    "ends_with",
     "lower",
     "upper",
     "trim",
@@ -248,6 +250,16 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                 text.to_uppercase()
             };
             Ok(Value::String(result.into()))
+        }
+        "starts_with" | "ends_with" => {
+            expect_arity(name, &args, 2, line)?;
+            let text = string_arg(name, &args[0], 1, line)?;
+            let pattern = string_arg(name, &args[1], 2, line)?;
+            Ok(Value::Bool(if name == "starts_with" {
+                text.starts_with(pattern)
+            } else {
+                text.ends_with(pattern)
+            }))
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }
