@@ -35,8 +35,23 @@ fn number_arg(name: &str, value: &Value, position: usize, line: usize) -> Result
 }
 
 pub(crate) const NAMES: &[&str] = &[
-    "log", "exp", "sin", "cos", "tan", "pow", "sqrt", "min", "max", "round", "floor", "ceil",
-    "trunc", "clock", "abs",
+    "is_nan",
+    "is_finite",
+    "log",
+    "exp",
+    "sin",
+    "cos",
+    "tan",
+    "pow",
+    "sqrt",
+    "min",
+    "max",
+    "round",
+    "floor",
+    "ceil",
+    "trunc",
+    "clock",
+    "abs",
 ];
 
 pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
@@ -131,6 +146,15 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                 number.ln()
             } else {
                 number.exp()
+            }))
+        }
+        "is_nan" | "is_finite" => {
+            expect_arity(name, &args, 1, line)?;
+            let number = number_arg(name, &args[0], 1, line)?;
+            Ok(Value::Bool(if name == "is_nan" {
+                number.is_nan()
+            } else {
+                number.is_finite()
             }))
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),

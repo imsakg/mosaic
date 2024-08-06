@@ -190,4 +190,24 @@ fn log_requires_a_positive_domain_and_both_functions_require_numbers() {
     }
 }
 
+#[test]
+fn numeric_predicates_distinguish_nan_infinity_and_finite_values() {
+    assert_eq!(output("print is_nan(0 / 0); print is_nan(1 / 0); print is_nan(42); print is_finite(42); print is_finite(-0); print is_finite(1 / 0); print is_finite(-1 / 0); print is_finite(0 / 0);"),
+        ["true", "false", "false", "true", "true", "false", "false", "false"]);
+}
+
+#[test]
+fn numeric_predicates_are_strict_instead_of_coercing() {
+    for name in ["is_nan", "is_finite"] {
+        for operand in ["nil", "false", "\"NaN\""] {
+            assert!(runtime_error(&format!("{name}({operand});"))
+                .message
+                .contains("must be a number"));
+        }
+        assert!(runtime_error(&format!("{name}(1, 2);"))
+            .message
+            .contains("Expected 1"));
+    }
+}
+
 // More regression cases follow.
