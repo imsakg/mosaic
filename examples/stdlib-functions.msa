@@ -1,0 +1,25 @@
+// Native functions are ordinary values, including inside lexical closures.
+// cargo run -p interpreter -- --backend tree examples/stdlib-functions.msa
+fun compose(outer, inner) {
+    fun apply(value) {
+        return outer(inner(value));
+    }
+    return apply;
+}
+
+var normalize = compose(lower, trim);
+print normalize(" \t MiXeD CAFÉ "); // => mixed café
+var roundMagnitude = compose(round, abs);
+print roundMagnitude(-2.5); // => 3
+
+var savedAbs = abs;
+{
+    var lower = "local shadow";
+    fun abs(value) { return "local function"; }
+    print abs(-4); // => local function
+    print savedAbs(-4); // => 4
+    print normalize("  CAFÉ  "); // => café
+}
+print abs(-7); // => 7
+assert(savedAbs == abs, "alias preserves native identity");
+print assert(0); // => nil

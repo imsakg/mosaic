@@ -1,0 +1,29 @@
+// Invoice arithmetic, geometry, and IEEE classification. Run from the repo root:
+// cargo run -p interpreter -- --backend tree examples/stdlib-math.msa
+fun close(actual, expected) {
+    return abs(actual - expected) < 0.000000000001;
+}
+
+var unitPrice = number("19.95");
+var cents = round(unitPrice * 100);
+print cents; // => 1995
+print floor(-2.8); // => -3
+print ceil(-2.8); // => -2
+print trunc(-2.8); // => -2
+print max(0, min(100, 125)); // => 100
+
+fun hypotenuse(a, b) {
+    return sqrt(pow(a, 2) + pow(b, 2));
+}
+print hypotenuse(3, 4); // => 5
+assert(close(hypotenuse(1, 1), sqrt(2)), "Pythagorean identity");
+
+var pi = 3.141592653589793;
+assert(close(sin(pi / 2), 1), "sine uses radians");
+assert(close(cos(pi), -1), "cosine uses radians");
+assert(close(tan(pi / 4), 1), "tangent uses radians");
+assert(close(exp(log(10)), 10), "natural log and exponential are inverses");
+print is_finite(cents); // => true
+print is_finite(exp(1000)); // => false
+print is_nan(pow(-1, 0.5)); // => true
+print 1 / min(0, -0); // => -inf

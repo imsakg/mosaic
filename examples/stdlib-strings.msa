@@ -1,0 +1,21 @@
+// Clean and transform Unicode text without mutating the original.
+// cargo run -p interpreter -- --backend tree examples/stdlib-strings.msa
+var original = " \t Straße 🦀 \r\n";
+var cleaned = upper(trim(original));
+print cleaned; // => STRASSE 🦀
+assert(starts_with(original, " \t"), "trimming leaves the original unchanged");
+
+var slug = lower(replace(trim("  Café au Lait  "), " ", "-"));
+print slug; // => café-au-lait
+assert(starts_with(slug, "café"), "literal Unicode prefix");
+assert(ends_with(slug, "lait"), "literal suffix");
+assert(contains(slug, "-au-"), "literal containment");
+assert(!contains(slug, ".*"), "patterns are not regular expressions");
+
+print replace("banana", "na", ""); // => ba
+print replace("é🦀", "", "-"); // => -é-🦀-
+print repeat("─", 6); // => ──────
+print char_at("aé🦀", 2); // => 🦀
+print char_at("aé🦀", 3); // => nil
+assert(repeat("x", 0) == "", "zero repetitions");
+assert(char_at("", 0) == nil, "empty string has no scalars");
