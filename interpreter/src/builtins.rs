@@ -121,12 +121,7 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
     let error = |message: String| Diagnostic::new("Runtime", line, message);
     match name {
         "clock" => {
-            if !args.is_empty() {
-                return Err(error(format!(
-                    "Expected 0 arguments but got {}.",
-                    args.len()
-                )));
-            }
+            expect_arity(name, &args, 0, line)?;
             let seconds = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map_err(|_| error("System clock is before Unix epoch.".into()))?
@@ -335,5 +330,31 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
             }
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn registered_names_are_unique_and_have_dispatch_arms() {
+        let unique: HashSet<_> = NAMES.iter().collect();
+        assert_eq!(unique.len(), NAMES.len(), "duplicate native global");
+        for &name in NAMES {
+            if name != "clock" {
+                let error = call(name, Vec::new(), 1).unwrap_err();
+                assert!(!error.message.contains("Unknown native"), "{name}: {error}");
+            }
+        }
+    }
+
+    #[test]
+    fn unknown_native_dispatch_returns_a_line_tagged_diagnostic() {
+        assert_eq!(
+            call("not_a_native", Vec::new(), 47).unwrap_err(),
+            Diagnostic::new("Runtime", 47, "Unknown native function 'not_a_native'.")
+        );
     }
 }

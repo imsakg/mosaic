@@ -500,4 +500,214 @@ fn string_api_documentation_examples_are_executable() {
     check_documented_examples(include_str!("../../docs/stdlib-strings.md"));
 }
 
+const EXACT_ARITIES: &[(&str, usize)] = &[
+    ("clock", 0),
+    ("abs", 1),
+    ("floor", 1),
+    ("ceil", 1),
+    ("trunc", 1),
+    ("round", 1),
+    ("min", 2),
+    ("max", 2),
+    ("sqrt", 1),
+    ("pow", 2),
+    ("sin", 1),
+    ("cos", 1),
+    ("tan", 1),
+    ("log", 1),
+    ("exp", 1),
+    ("is_nan", 1),
+    ("is_finite", 1),
+    ("number", 1),
+    ("trim", 1),
+    ("lower", 1),
+    ("upper", 1),
+    ("starts_with", 2),
+    ("ends_with", 2),
+    ("contains", 2),
+    ("replace", 3),
+    ("repeat", 2),
+    ("char_at", 2),
+];
+
+#[test]
+fn every_fixed_arity_native_names_itself_and_reports_expected_actual_and_line() {
+    for &(name, expected) in EXACT_ARITIES {
+        let mut wrong_counts = vec![expected + 1];
+        if expected > 0 {
+            wrong_counts.push(expected - 1);
+        }
+        for actual in wrong_counts {
+            let arguments = vec!["0"; actual].join(", ");
+            let error = runtime_error(&format!("\n\n{name}({arguments});"));
+            assert_eq!(error.line, 3, "{name}");
+            assert!(error.message.contains(name), "{error}");
+            assert!(
+                error
+                    .message
+                    .contains(&format!("Expected {expected} arguments but got {actual}")),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn every_native_is_a_named_first_class_value() {
+    for name in EXACT_ARITIES
+        .iter()
+        .map(|(name, _)| *name)
+        .chain(["assert"])
+    {
+        assert_eq!(
+            output(&format!("print {name};")),
+            [format!("<native {name}>")]
+        );
+    }
+}
+
+#[test]
+fn numeric_and_string_functions_reject_unrelated_value_kinds() {
+    let prefix = "fun f() {} class Box {} var instance = Box(); ";
+    for name in [
+        "abs",
+        "floor",
+        "ceil",
+        "trunc",
+        "round",
+        "sqrt",
+        "sin",
+        "cos",
+        "tan",
+        "log",
+        "exp",
+        "is_nan",
+        "is_finite",
+    ] {
+        for value in ["nil", "true", "\"1\"", "f", "Box", "instance", "clock"] {
+            let error = runtime_error(&format!("{prefix}{name}({value});"));
+            assert!(
+                error
+                    .message
+                    .contains(&format!("{name} argument 1 must be a number")),
+                "{error}"
+            );
+        }
+    }
+    for name in ["trim", "lower", "upper"] {
+        for value in ["nil", "true", "1", "f", "Box", "instance", "clock"] {
+            let error = runtime_error(&format!("{prefix}{name}({value});"));
+            assert!(
+                error
+                    .message
+                    .contains(&format!("{name} argument 1 must be a string")),
+                "{error}"
+            );
+        }
+    }
+    for value in ["nil", "true", "f", "Box", "instance", "clock"] {
+        assert!(runtime_error(&format!("{prefix}number({value});"))
+            .message
+            .contains("must be a number or string"));
+    }
+}
+
+#[test]
+fn native_aliases_can_be_closed_over_and_shadowed_without_losing_identity() {
+    assert_eq!(
+        output(
+            r#"
+        var nativeAbs = abs;
+        fun capture(transform) {
+            fun apply(value) { return transform(value); }
+            return apply;
+        }
+        var transform = capture(upper);
+        {
+            fun abs(value) { return 99; }
+            var upper = "shadow";
+            print abs(-2);
+            print nativeAbs(-2);
+            print transform("café");
+        }
+        print abs(-3);
+        print upper("ok");
+        print nativeAbs == abs;
+        var abs = "shadow";
+        print nativeAbs(-4);
+        print abs;
+    "#
+        ),
+        ["99", "2", "CAFÉ", "3", "OK", "true", "4", "shadow"]
+    );
+}
+
+#[test]
+fn native_validation_keeps_eager_left_to_right_effects_and_recovers_after_errors() {
+    let mut interpreter = Interpreter::new();
+    interpreter
+        .run(r#"var order = ""; fun tick(label, value) { order = order + label; return value; }"#)
+        .unwrap();
+    assert!(interpreter
+        .run(r#"abs(tick("a", 1), tick("b", 2));"#)
+        .unwrap_err()[0]
+        .message
+        .contains("Expected 1"));
+    assert_eq!(interpreter.run("print order;").unwrap(), ["ab"]);
+    assert!(interpreter
+        .run(r#"min(tick("c", nil), tick("d", 2));"#)
+        .unwrap_err()[0]
+        .message
+        .contains("argument 1"));
+    assert_eq!(interpreter.run("print order;").unwrap(), ["abcd"]);
+    interpreter
+        .run(r#"assert(tick("e", true), tick("f", "ok"));"#)
+        .unwrap();
+    assert_eq!(interpreter.run("print order;").unwrap(), ["abcdef"]);
+    assert!(interpreter
+        .run(r#"assert(tick("g", false), tick("h", "message"));"#)
+        .unwrap_err()[0]
+        .message
+        .contains("Assertion failed: message"));
+    assert_eq!(
+        interpreter.run("print order; print abs(-9);").unwrap(),
+        ["abcdefgh", "9"]
+    );
+}
+
+#[test]
+fn decimal_conversion_preserves_underflow_sign_and_rejects_more_partial_forms() {
+    assert_eq!(
+        output(
+            r#"print number("0001"); print number("1.e+2"); print number("1e-9999"); print 1 / number("-1e-9999");"#
+        ),
+        ["1", "100", "0", "-inf"]
+    );
+    for text in [
+        "+NaN", "-inf", "nan", "1e2e3", "1e 2", ".e1", "0b10", "1,2", "²", "1\u{a0}",
+    ] {
+        assert!(runtime_error(&format!("number(\"{text}\");"))
+            .message
+            .contains("finite decimal string"));
+    }
+}
+
+#[test]
+fn zero_and_empty_string_edges_do_not_skip_count_validation_or_change_signs() {
+    assert_eq!(output("print 1 / abs(-0); print 1 / floor(-0); print 1 / round(-0); print 1 / min(-0, -0); print 1 / max(-0, -0);"),
+        ["inf", "-inf", "-inf", "-inf", "-inf"]);
+    for count in ["-1", "0.5", "0 / 0", "1 / 0"] {
+        assert!(runtime_error(&format!("repeat(\"\", {count});"))
+            .message
+            .contains("finite nonnegative integer"));
+    }
+    assert!(runtime_error("repeat(repeat(\"x\", 1048576) + \"x\", 1);")
+        .message
+        .contains("exceeds 1048576"));
+    assert_eq!(
+        output("print repeat(repeat(\"x\", 1048576) + \"x\", 0) == \"\";"),
+        ["true"]
+    );
+}
+
 // More regression cases follow.
