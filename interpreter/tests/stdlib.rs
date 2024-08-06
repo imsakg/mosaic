@@ -78,4 +78,26 @@ fn round_preserves_nonfinite_numbers_and_checks_arity() {
         .contains("must be a number"));
 }
 
+#[test]
+fn min_and_max_compare_exactly_two_numeric_values() {
+    assert_eq!(
+        output("print min(4, -2); print max(4, -2); print min(3, 3); print max(-1 / 0, 1 / 0);"),
+        ["-2", "4", "3", "inf"]
+    );
+    for source in ["min(1);", "max(1, 2, 3);"] {
+        assert!(runtime_error(source).message.contains("Expected 2"));
+    }
+    assert!(runtime_error("max(1, false);")
+        .message
+        .contains("argument 2 must be a number"));
+}
+
+#[test]
+fn min_and_max_propagate_nan_and_choose_signed_zero_consistently() {
+    assert_eq!(output("var nan = 0 / 0; print min(nan, 1) == 1; print min(1, nan) == 1; print max(nan, 1) == 1; print max(1, nan) == 1;"),
+        ["false", "false", "false", "false"]);
+    assert_eq!(output("print 1 / min(0, -0); print 1 / min(-0, 0); print 1 / max(0, -0); print 1 / max(-0, 0);"),
+        ["-inf", "-inf", "inf", "inf"]);
+}
+
 // More regression cases follow.

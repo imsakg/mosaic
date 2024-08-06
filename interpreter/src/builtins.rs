@@ -34,7 +34,9 @@ fn number_arg(name: &str, value: &Value, position: usize, line: usize) -> Result
     }
 }
 
-pub(crate) const NAMES: &[&str] = &["round", "floor", "ceil", "trunc", "clock", "abs"];
+pub(crate) const NAMES: &[&str] = &[
+    "min", "max", "round", "floor", "ceil", "trunc", "clock", "abs",
+];
 
 pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
     let error = |message: String| Diagnostic::new("Runtime", line, message);
@@ -69,6 +71,30 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
         "round" => {
             expect_arity(name, &args, 1, line)?;
             Ok(Value::Number(number_arg(name, &args[0], 1, line)?.round()))
+        }
+        "min" | "max" => {
+            expect_arity(name, &args, 2, line)?;
+            let left = number_arg(name, &args[0], 1, line)?;
+            let right = number_arg(name, &args[1], 2, line)?;
+            let result = if left.is_nan() || right.is_nan() {
+                f64::NAN
+            } else if left == 0.0 && right == 0.0 {
+                let negative = if name == "min" {
+                    left.is_sign_negative() || right.is_sign_negative()
+                } else {
+                    left.is_sign_negative() && right.is_sign_negative()
+                };
+                if negative {
+                    -0.0
+                } else {
+                    0.0
+                }
+            } else if name == "min" {
+                left.min(right)
+            } else {
+                left.max(right)
+            };
+            Ok(Value::Number(result))
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }
