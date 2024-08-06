@@ -60,4 +60,22 @@ fn integral_rounding_rejects_non_numbers() {
     }
 }
 
+#[test]
+fn round_breaks_halfway_ties_away_from_zero() {
+    assert_eq!(output("print round(2.5); print round(-2.5); print round(2.49); print round(-2.49); print round(3); print 1 / round(-0.1);"),
+        ["3", "-3", "2", "-2", "3", "-inf"]);
+}
+
+#[test]
+fn round_preserves_nonfinite_numbers_and_checks_arity() {
+    assert_eq!(
+        output("print round(1 / 0); print round(-1 / 0); print round(0 / 0) == 0;"),
+        ["inf", "-inf", "false"]
+    );
+    assert!(runtime_error("round();").message.contains("Expected 1"));
+    assert!(runtime_error("round(nil);")
+        .message
+        .contains("must be a number"));
+}
+
 // More regression cases follow.
