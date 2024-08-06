@@ -87,6 +87,7 @@ fn decimal_string(text: &str) -> bool {
 }
 
 pub(crate) const NAMES: &[&str] = &[
+    "char_at",
     "repeat",
     "replace",
     "contains",
@@ -292,6 +293,24 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                 )));
             }
             Ok(Value::String(text.repeat(count as usize).into()))
+        }
+        "char_at" => {
+            expect_arity(name, &args, 2, line)?;
+            let text = string_arg(name, &args[0], 1, line)?;
+            let index = number_arg(name, &args[1], 2, line)?;
+            if !index.is_finite() || index < 0.0 || index.fract() != 0.0 {
+                return Err(error(
+                    "char_at index must be a finite nonnegative integer.".into(),
+                ));
+            }
+            // Scalar counts cannot exceed byte counts. Reject huge indices before casting.
+            if index >= text.len() as f64 {
+                return Ok(Value::Nil);
+            }
+            Ok(match text.chars().nth(index as usize) {
+                Some(character) => Value::String(character.to_string().into()),
+                None => Value::Nil,
+            })
         }
         _ => Err(error(format!("Unknown native function '{name}'."))),
     }

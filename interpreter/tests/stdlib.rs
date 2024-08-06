@@ -406,4 +406,37 @@ fn repeat_enforces_a_one_mebibyte_utf8_output_limit() {
     }
 }
 
+#[test]
+fn char_at_indexes_unicode_scalars_not_utf8_bytes_or_graphemes() {
+    assert_eq!(
+        output(
+            r#"print char_at("aé🦀", 0); print char_at("aé🦀", 1); print char_at("aé🦀", 2); print char_at("aé🦀", 3); print char_at("é", 1); print char_at("", 0); print char_at("x", number("1e300")); print char_at("x", -0);"#
+        ),
+        ["a", "é", "🦀", "nil", "\u{301}", "nil", "nil", "x"]
+    );
+}
+
+#[test]
+fn char_at_rejects_invalid_indices_and_argument_types() {
+    for operand in ["-1", "0.5", "1 / 0", "-1 / 0", "0 / 0"] {
+        let error = runtime_error(&format!("\nchar_at(\"é\", {operand});"));
+        assert_eq!(error.line, 2);
+        assert!(
+            error
+                .message
+                .contains("char_at index must be a finite nonnegative integer"),
+            "{error}"
+        );
+    }
+    assert!(runtime_error("char_at(nil, 0);")
+        .message
+        .contains("argument 1 must be a string"));
+    assert!(runtime_error("char_at(\"a\", false);")
+        .message
+        .contains("argument 2 must be a number"));
+    assert!(runtime_error("char_at(\"a\");")
+        .message
+        .contains("Expected 2"));
+}
+
 // More regression cases follow.
