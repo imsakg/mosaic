@@ -121,4 +121,24 @@ fn sqrt_rejects_negative_domain_with_a_source_line() {
         .contains("must be a number"));
 }
 
+#[test]
+fn pow_supports_fractional_and_negative_exponents() {
+    assert_eq!(output("print pow(2, 10); print pow(9, 0.5); print pow(2, -3); print pow(-2, 3); print pow(0, 0);"),
+        ["1024", "3", "0.125", "-8", "1"]);
+}
+
+#[test]
+fn pow_exposes_ieee_domains_and_validates_both_operands() {
+    assert_eq!(
+        output("print pow(-1, 0.5) == 0; print pow(0, -1); print pow(0 / 0, 0);"),
+        ["false", "inf", "1"]
+    );
+    for (source, position) in [("pow(false, 2);", 1), ("pow(2, nil);", 2)] {
+        assert!(runtime_error(source)
+            .message
+            .contains(&format!("argument {position} must be a number")));
+    }
+    assert!(runtime_error("pow(2);").message.contains("Expected 2"));
+}
+
 // More regression cases follow.
