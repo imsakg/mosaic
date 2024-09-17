@@ -779,10 +779,26 @@ impl Vm {
     /// Compilation errors execute nothing. On all errors, lexical environments
     /// and the operand stack are discarded, then unreachable strings are swept.
     pub fn run(&mut self, statements: &[Stmt]) -> Result<Vec<String>, String> {
-        self.stack.clear();
-        self.scopes.clear();
+        self.begin_run();
         let result = compile_with_options(statements, self.compile_options)
             .and_then(|chunk| self.execute(&chunk));
+        self.finish_run(result)
+    }
+
+    /// Execute reusable, heap-independent bytecode. Compile options affect only
+    /// `run`; this method executes the supplied chunk without recompiling it.
+    pub fn run_chunk(&mut self, chunk: &Chunk) -> Result<Vec<String>, String> {
+        self.begin_run();
+        let result = chunk.validate().and_then(|()| self.execute(chunk));
+        self.finish_run(result)
+    }
+
+    fn begin_run(&mut self) {
+        self.stack.clear();
+        self.scopes.clear();
+    }
+
+    fn finish_run(&mut self, result: Result<Vec<String>, String>) -> Result<Vec<String>, String> {
         self.stack.clear();
         self.scopes.clear();
         self.collect_garbage();

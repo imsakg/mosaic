@@ -90,6 +90,70 @@ fn raw_chunk_validation_rejects_malformed_operands_and_branch_interiors() {
 }
 
 #[test]
+fn compiled_chunks_are_reusable_across_runs_heaps_and_collections() {
+    let initialization = compile(&[var("count", Some(num(0.0)))]).unwrap();
+    let increment = compile(&[print(assign(
+        "count",
+        binary(name("count"), interpreter::ast::Op::Add, num(1.0)),
+    ))])
+    .unwrap();
+    for _ in 0..2 {
+        let mut vm = Vm::with_gc_threshold(1);
+        vm.set_gc_stress(true);
+        vm.run_chunk(&initialization).unwrap();
+        assert_eq!(vm.run_chunk(&increment).unwrap(), ["1"]);
+        vm.collect_garbage();
+        assert_eq!(vm.run_chunk(&increment).unwrap(), ["2"]);
+    }
+    let literal = compile(&[print(text("retained by chunk, not heap"))]).unwrap();
+    let mut vm = Vm::new();
+    for _ in 0..3 {
+        assert_eq!(
+            vm.run_chunk(&literal).unwrap(),
+            ["retained by chunk, not heap"]
+        );
+        assert_eq!(vm.gc_stats().live_objects, 0);
+    }
+}
+
+#[test]
+fn chunk_runtime_failures_clean_transient_state_and_allow_recovery() {
+    use interpreter::vm::Chunk;
+    let mut vm = Vm::with_gc_threshold(1);
+    vm.set_gc_stress(true);
+    let failure = compile(&[
+        var("kept", Some(text("global"))),
+        block(vec![
+            var("local", Some(text("secret"))),
+            print(name("missing")),
+        ]),
+    ])
+    .unwrap();
+    assert!(vm
+        .run_chunk(&failure)
+        .unwrap_err()
+        .contains("Undefined variable"));
+    assert_eq!(vm.gc_stats().live_objects, 2);
+    assert_eq!(
+        vm.run_chunk(&compile(&[print(name("kept"))]).unwrap())
+            .unwrap(),
+        ["global"]
+    );
+    for (opcode, expected) in [
+        (OpCode::Pop, "Operand stack underflow"),
+        (OpCode::ExitScope, "Lexical scope underflow"),
+        (OpCode::EnterScope, "Unbalanced bytecode state"),
+    ] {
+        let chunk = Chunk::from_parts(vec![opcode as u8], vec![23], vec![]).unwrap();
+        let error = vm.run_chunk(&chunk).unwrap_err();
+        assert!(error.contains(expected), "{error}");
+        assert!(error.contains("[line 23]"));
+        assert!(vm.run_chunk(&Chunk::default()).unwrap().is_empty());
+        assert_eq!(vm.gc_stats().live_objects, 2);
+    }
+}
+
+#[test]
 fn instruction_iterator_and_statistics_use_real_byte_offsets() {
     let chunk = compile(&[print(num(2.0)), print(boolean(true))]).unwrap();
     let mut instructions = chunk.instructions();
