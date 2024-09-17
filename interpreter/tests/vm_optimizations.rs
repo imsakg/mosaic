@@ -44,6 +44,53 @@ fn text_literals_and_name_operands_share_a_deterministic_constant_pool() {
 }
 
 #[test]
+fn unary_literal_folding_removes_only_safe_operations() {
+    let program = vec![
+        print(unary(Op::Negate, num(0.0))),
+        print(unary(Op::Negate, unary(Op::Negate, num(2.0)))),
+        print(unary(Op::Not, nil())),
+        print(unary(Op::Not, text(""))),
+        print(unary(Op::Not, boolean(false))),
+    ];
+    let chunk = optimized(&program);
+    let listing = chunk.disassemble().unwrap();
+    assert!(!listing.contains("NEGATE"), "{listing}");
+    assert!(!listing.contains("NOT\n"), "{listing}");
+    assert_eq!(
+        optimized_vm().run(&program).unwrap(),
+        ["-0", "2", "true", "false", "true"]
+    );
+    assert!(compile(&program).unwrap().code().len() > chunk.code().len());
+    let invalid = vec![print(unary(Op::Negate, nil()))];
+    assert!(optimized(&invalid)
+        .disassemble()
+        .unwrap()
+        .contains("NEGATE"));
+    assert_eq!(optimized_vm().run(&invalid), Vm::new().run(&invalid));
+    let invalid_operator = print(unary(Op::Not, unary(Op::Add, num(1.0))));
+    assert!(
+        compile_with_options(&[invalid_operator], CompileOptions { optimize: true })
+            .unwrap_err()
+            .contains("Invalid unary operator")
+    );
+}
+
+#[test]
+fn unary_optimizer_does_not_remove_assignments_or_self_initializer_errors() {
+    let program = vec![
+        var("x", Some(boolean(false))),
+        print(unary(Op::Not, assign("x", boolean(true)))),
+        print(name("x")),
+    ];
+    assert_eq!(optimized_vm().run(&program).unwrap(), ["false", "true"]);
+    let invalid = block(vec![var("x", Some(unary(Op::Not, name("x"))))]);
+    assert!(optimized_vm()
+        .run(&[invalid])
+        .unwrap_err()
+        .contains("initializer"));
+}
+
+#[test]
 fn numeric_pool_deduplicates_by_bits_without_merging_signed_zero_or_nan_payloads() {
     let nan = f64::from_bits(0x7ff8_0000_0000_0042);
     let other_nan = f64::from_bits(0x7ff8_0000_0000_0043);

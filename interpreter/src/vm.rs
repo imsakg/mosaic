@@ -123,6 +123,26 @@ fn runtime_error(line: usize, message: &str) -> String {
     format!("[line {line}] Runtime error: {message}")
 }
 
+// Only recursively literal expressions may be folded. Returning None leaves
+// both compile-time validation and runtime type errors on their original path.
+fn fold_literal(expression: &Expr) -> Option<Literal> {
+    match &expression.kind {
+        ExprKind::Literal(value) => Some(value.clone()),
+        ExprKind::Unary(operator, operand) => {
+            let value = fold_literal(operand)?;
+            match (operator, value) {
+                (Op::Not, value) => Some(Literal::Bool(matches!(
+                    value,
+                    Literal::Nil | Literal::Bool(false)
+                ))),
+                (Op::Negate, Literal::Number(value)) => Some(Literal::Number(-value)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 #[derive(Debug)]
 struct Local {
     name: String,
@@ -341,19 +361,31 @@ impl Compiler {
         Ok(())
     }
 
-    fn expression(&mut self, expression: &Expr) -> Result<(), String> {
-        let line = expression.line;
-        match &expression.kind {
-            ExprKind::Literal(Literal::Nil) => {
+    fn literal(&mut self, value: &Literal, line: usize) -> Result<(), String> {
+        match value {
+            Literal::Nil => {
                 self.emit(OpCode::Nil, line);
             }
-            ExprKind::Literal(Literal::Bool(value)) => {
+            Literal::Bool(value) => {
                 self.emit(if *value { OpCode::True } else { OpCode::False }, line);
             }
-            ExprKind::Literal(value) => {
+            value => {
                 let index = self.constant(value.clone(), line)?;
                 self.operand(OpCode::Constant, index, line)?;
             }
+        }
+        Ok(())
+    }
+
+    fn expression(&mut self, expression: &Expr) -> Result<(), String> {
+        let line = expression.line;
+        if self.options.optimize {
+            if let Some(value) = fold_literal(expression) {
+                return self.literal(&value, line);
+            }
+        }
+        match &expression.kind {
+            ExprKind::Literal(value) => self.literal(value, line)?,
             ExprKind::Variable(name) => {
                 self.check_initialized(name, line)?;
                 self.named(OpCode::GetName, name, line)?;
