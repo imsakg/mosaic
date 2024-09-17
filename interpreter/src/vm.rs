@@ -726,6 +726,8 @@ pub struct Vm {
     trace_limit: usize,
     trace: Vec<TraceEvent>,
     trace_truncated: bool,
+    instruction_limit: Option<u64>,
+    instructions_executed: u64,
 }
 
 impl Default for Vm {
@@ -755,6 +757,8 @@ impl Vm {
             trace_limit: 0,
             trace: Vec::new(),
             trace_truncated: false,
+            instruction_limit: None,
+            instructions_executed: 0,
         }
     }
 
@@ -776,6 +780,16 @@ impl Vm {
     }
     pub fn trace_truncated(&self) -> bool {
         self.trace_truncated
+    }
+
+    /// Maximum attempted instructions per run; None is unlimited. Exhaustion
+    /// occurs before the next instruction, without rolling back earlier globals.
+    pub fn set_instruction_limit(&mut self, limit: Option<u64>) {
+        self.instruction_limit = limit;
+    }
+    /// Includes an instruction that fails at runtime, but not a budget-blocked one.
+    pub fn instructions_executed(&self) -> u64 {
+        self.instructions_executed
     }
 
     pub fn gc_stats(&self) -> GcStats {
@@ -824,6 +838,7 @@ impl Vm {
     }
 
     fn begin_run(&mut self) {
+        self.instructions_executed = 0;
         self.trace.clear();
         self.trace_truncated = false;
         self.stack.clear();
@@ -884,7 +899,17 @@ impl Vm {
         let mut output = Vec::new();
         let mut ip = 0;
         while ip < chunk.code.len() {
+            if self
+                .instruction_limit
+                .is_some_and(|limit| self.instructions_executed >= limit)
+            {
+                return Err(runtime_error(
+                    chunk.lines[ip],
+                    "Instruction budget exhausted.",
+                ));
+            }
             let (opcode, operand, next) = chunk.decode(ip)?;
+            self.instructions_executed = self.instructions_executed.saturating_add(1);
             let line = chunk.lines[ip];
             if self.trace_limit > 0 {
                 if self.trace.len() < self.trace_limit {

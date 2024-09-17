@@ -220,6 +220,68 @@ fn trace_includes_failing_instructions_and_resets_on_compile_failure() {
 }
 
 #[test]
+fn instruction_budgets_stop_loops_exactly_and_reset_for_each_run() {
+    use interpreter::vm::Chunk;
+    let infinite =
+        Chunk::from_parts(vec![OpCode::Jump as u8, 0, 0, 0, 0], vec![19; 5], vec![]).unwrap();
+    let mut vm = Vm::new();
+    vm.set_trace_limit(4);
+    vm.set_instruction_limit(Some(23));
+    let error = vm.run_chunk(&infinite).unwrap_err();
+    assert_eq!(
+        error,
+        "[line 19] Runtime error: Instruction budget exhausted."
+    );
+    assert_eq!(vm.instructions_executed(), 23);
+    assert_eq!(vm.trace().len(), 4);
+    assert!(vm.trace_truncated());
+    vm.set_instruction_limit(Some(0));
+    assert!(vm.run(&[]).unwrap().is_empty());
+    assert_eq!(vm.instructions_executed(), 0);
+    assert!(vm.run(&[print(text("not allocated"))]).is_err());
+    assert_eq!(vm.instructions_executed(), 0);
+    assert!(vm.trace().is_empty());
+    vm.set_instruction_limit(Some(2));
+    for _ in 0..2 {
+        assert_eq!(vm.run(&[print(num(4.0))]).unwrap(), ["4"]);
+        assert_eq!(vm.instructions_executed(), 2);
+    }
+    vm.set_instruction_limit(Some(1));
+    assert!(vm.run(&[print(text("temporary"))]).is_err());
+    assert_eq!(vm.instructions_executed(), 1);
+    assert_eq!(vm.gc_stats().live_objects, 0);
+    assert!(vm
+        .run(&[print(name("missing"))])
+        .unwrap_err()
+        .contains("Undefined variable"));
+    assert_eq!(vm.instructions_executed(), 1);
+    vm.set_instruction_limit(None);
+    assert_eq!(vm.run(&[print(boolean(true))]).unwrap(), ["true"]);
+}
+
+#[test]
+fn interrupted_scopes_are_swept_but_completed_global_mutations_survive() {
+    let mut vm = Vm::with_gc_threshold(1);
+    vm.set_gc_stress(true);
+    vm.run(&[var("kept", Some(text("old")))]).unwrap();
+    vm.set_instruction_limit(Some(31));
+    let program = [
+        expression(assign("kept", text("new"))),
+        while_(
+            boolean(true),
+            block(vec![var("local", Some(text("secret")))]),
+        ),
+    ];
+    assert!(vm.run(&program).unwrap_err().contains("Instruction budget"));
+    assert_eq!(vm.instructions_executed(), 31);
+    assert_eq!(vm.gc_stats().live_objects, 2);
+    vm.set_instruction_limit(None);
+    assert_eq!(vm.run(&[print(name("kept"))]).unwrap(), ["new"]);
+    assert!(vm.run(&[print(name("local"))]).is_err());
+    assert_eq!(vm.gc_stats().live_objects, 2);
+}
+
+#[test]
 fn instruction_iterator_and_statistics_use_real_byte_offsets() {
     let chunk = compile(&[print(num(2.0)), print(boolean(true))]).unwrap();
     let mut instructions = chunk.instructions();
