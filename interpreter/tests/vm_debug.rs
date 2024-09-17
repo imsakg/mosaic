@@ -40,6 +40,56 @@ fn source_mapping_covers_operand_bytes_and_folded_operator_locations() {
 }
 
 #[test]
+fn raw_chunk_validation_rejects_malformed_operands_and_branch_interiors() {
+    use interpreter::vm::Chunk;
+    let raw =
+        |code: Vec<u8>, constants| Chunk::from_parts(code.clone(), vec![7; code.len()], constants);
+    assert!(Chunk::from_parts(vec![OpCode::Nil as u8], vec![], vec![])
+        .unwrap_err()
+        .contains("Source map length"));
+    assert!(raw(vec![u8::MAX], vec![])
+        .unwrap_err()
+        .contains("Unknown opcode"));
+    assert!(raw(vec![OpCode::Constant as u8, 0, 0], vec![])
+        .unwrap_err()
+        .contains("Truncated instruction"));
+    assert!(raw(vec![OpCode::Constant as u8, 0, 0, 0, 0], vec![])
+        .unwrap_err()
+        .contains("Invalid constant index"));
+    assert!(raw(
+        vec![OpCode::GetName as u8, 0, 0, 0, 0],
+        vec![Literal::Number(1.0)]
+    )
+    .unwrap_err()
+    .contains("Invalid name constant"));
+    for opcode in [OpCode::Jump, OpCode::JumpIfFalse] {
+        for target in [1, 4, 6, u32::MAX] {
+            let mut code = vec![opcode as u8];
+            code.extend_from_slice(&target.to_le_bytes());
+            assert!(raw(code, vec![])
+                .unwrap_err()
+                .contains("instruction boundary"));
+        }
+        for target in [0u32, 5] {
+            let mut code = vec![opcode as u8];
+            code.extend_from_slice(&target.to_le_bytes());
+            raw(code, vec![]).unwrap().validate().unwrap();
+        }
+    }
+    let chunk = compile(&[while_(boolean(false), block(vec![print(text("skip"))]))]).unwrap();
+    chunk.validate().unwrap();
+    let rebuilt = Chunk::from_parts(
+        chunk.code().to_vec(),
+        (0..chunk.code().len())
+            .map(|i| chunk.line_at(i).unwrap())
+            .collect(),
+        chunk.constants().to_vec(),
+    )
+    .unwrap();
+    assert_eq!(rebuilt.disassemble(), chunk.disassemble());
+}
+
+#[test]
 fn instruction_iterator_and_statistics_use_real_byte_offsets() {
     let chunk = compile(&[print(num(2.0)), print(boolean(true))]).unwrap();
     let mut instructions = chunk.instructions();

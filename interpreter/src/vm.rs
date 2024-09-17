@@ -7,7 +7,7 @@
 
 use crate::ast::{Expr, ExprKind, Literal, Op, Stmt, StmtKind};
 use crate::gc::{GcStats, Handle, Heap};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
 macro_rules! opcodes {
@@ -114,6 +114,63 @@ pub struct ChunkStats {
 }
 
 impl Chunk {
+    /// Construct immutable bytecode after structural validation. This checks
+    /// encoding, metadata, constants and jumps, not stack or type correctness.
+    pub fn from_parts(
+        code: Vec<u8>,
+        lines: Vec<usize>,
+        constants: Vec<Literal>,
+    ) -> Result<Self, String> {
+        let chunk = Self {
+            code,
+            lines,
+            constants,
+        };
+        chunk.validate()?;
+        Ok(chunk)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.lines.len() != self.code.len() {
+            return Err(runtime_error(
+                0,
+                "Source map length does not match bytecode.",
+            ));
+        }
+        let instructions = self.instructions().collect::<Result<Vec<_>, _>>()?;
+        let boundaries: HashSet<_> = instructions
+            .iter()
+            .map(|i| i.offset)
+            .chain(std::iter::once(self.code.len()))
+            .collect();
+        for instruction in instructions {
+            let Some(operand) = instruction.operand else {
+                continue;
+            };
+            match instruction.opcode {
+                OpCode::Jump | OpCode::JumpIfFalse => {
+                    if !boundaries.contains(&operand) {
+                        return Err(runtime_error(
+                            instruction.line,
+                            "Jump target is not an instruction boundary.",
+                        ));
+                    }
+                }
+                OpCode::Constant => {
+                    if self.constants.get(operand).is_none() {
+                        return Err(runtime_error(instruction.line, "Invalid constant index."));
+                    }
+                }
+                _ => {
+                    if !matches!(self.constants.get(operand), Some(Literal::String(_))) {
+                        return Err(runtime_error(instruction.line, "Invalid name constant."));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Source line for any byte, including operand bytes; None past the chunk.
     pub fn line_at(&self, offset: usize) -> Option<usize> {
         self.lines.get(offset).copied()
@@ -163,6 +220,7 @@ impl Chunk {
     }
 
     pub fn disassemble(&self) -> Result<String, String> {
+        self.validate()?;
         let mut result = String::new();
         let mut offset = 0;
         while offset < self.code.len() {
@@ -315,6 +373,7 @@ pub fn compile_with_options(statements: &[Stmt], options: CompileOptions) -> Res
     for statement in statements {
         compiler.statement(statement)?;
     }
+    compiler.chunk.validate()?;
     Ok(compiler.chunk)
 }
 
