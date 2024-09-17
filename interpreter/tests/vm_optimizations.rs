@@ -91,6 +91,77 @@ fn unary_optimizer_does_not_remove_assignments_or_self_initializer_errors() {
 }
 
 #[test]
+fn numeric_folding_uses_ieee_operations_and_preserves_expression_order() {
+    let pairs = [
+        (7.0, 2.0),
+        (0.0, -0.0),
+        (1.0, 0.0),
+        (0.0, 0.0),
+        (f64::INFINITY, f64::NEG_INFINITY),
+        (f64::MAX, 2.0),
+        (f64::NAN, 1.0),
+    ];
+    for (left, right) in pairs {
+        for (operator, expected) in [
+            (Op::Add, left + right),
+            (Op::Subtract, left - right),
+            (Op::Multiply, left * right),
+            (Op::Divide, left / right),
+        ] {
+            let program = [print(binary(num(left), operator, num(right)))];
+            let chunk = optimized(&program);
+            assert_eq!(chunk.code().len(), 6, "{operator:?}");
+            let Literal::Number(actual) = chunk.constants()[0] else {
+                panic!("not a number")
+            };
+            assert_eq!(
+                actual.to_bits(),
+                expected.to_bits(),
+                "{operator:?}: {left} {right}"
+            );
+            assert_eq!(optimized_vm().run(&program), Vm::new().run(&program));
+        }
+        for operator in [Op::Less, Op::LessEqual, Op::Greater, Op::GreaterEqual] {
+            let program = [print(binary(num(left), operator, num(right)))];
+            assert_eq!(optimized(&program).code().len(), 2);
+            assert_eq!(optimized_vm().run(&program), Vm::new().run(&program));
+        }
+    }
+    let nested = [print(binary(
+        binary(num(1e16), Op::Add, num(-1e16)),
+        Op::Add,
+        num(1.0),
+    ))];
+    assert_eq!(optimized_vm().run(&nested), Vm::new().run(&nested));
+}
+
+#[test]
+fn numeric_optimizer_does_not_apply_algebraic_shortcuts_or_hide_invalid_operators() {
+    let program = [print(binary(num(0.0), Op::Multiply, name("missing")))];
+    assert_eq!(optimized_vm().run(&program), Vm::new().run(&program));
+    assert!(optimized_vm()
+        .run(&program)
+        .unwrap_err()
+        .contains("Undefined variable"));
+    let effects = [
+        var("x", Some(num(0.0))),
+        print(binary(assign("x", num(2.0)), Op::Multiply, num(0.0))),
+        print(name("x")),
+    ];
+    assert_eq!(optimized_vm().run(&effects), Vm::new().run(&effects));
+    let invalid = [print(binary(
+        num(0.0),
+        Op::Add,
+        binary(num(1.0), Op::And, num(2.0)),
+    ))];
+    assert!(
+        compile_with_options(&invalid, CompileOptions { optimize: true })
+            .unwrap_err()
+            .contains("Invalid binary operator")
+    );
+}
+
+#[test]
 fn numeric_pool_deduplicates_by_bits_without_merging_signed_zero_or_nan_payloads() {
     let nan = f64::from_bits(0x7ff8_0000_0000_0042);
     let other_nan = f64::from_bits(0x7ff8_0000_0000_0043);

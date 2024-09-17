@@ -128,6 +128,24 @@ fn runtime_error(line: usize, message: &str) -> String {
 fn fold_literal(expression: &Expr) -> Option<Literal> {
     match &expression.kind {
         ExprKind::Literal(value) => Some(value.clone()),
+        ExprKind::Binary(left, operator, right) => {
+            let (Literal::Number(left), Literal::Number(right)) =
+                (fold_literal(left)?, fold_literal(right)?)
+            else {
+                return None;
+            };
+            Some(match operator {
+                Op::Add => Literal::Number(left + right),
+                Op::Subtract => Literal::Number(left - right),
+                Op::Multiply => Literal::Number(left * right),
+                Op::Divide => Literal::Number(left / right),
+                Op::Greater => Literal::Bool(left > right),
+                Op::GreaterEqual => Literal::Bool(left >= right),
+                Op::Less => Literal::Bool(left < right),
+                Op::LessEqual => Literal::Bool(left <= right),
+                _ => return None,
+            })
+        }
         ExprKind::Unary(operator, operand) => {
             let value = fold_literal(operand)?;
             match (operator, value) {
