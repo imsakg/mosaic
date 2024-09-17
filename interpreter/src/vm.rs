@@ -22,7 +22,7 @@ macro_rules! opcodes {
                     _ => None,
                 }
             }
-            fn name(self) -> &'static str {
+            pub fn name(self) -> &'static str {
                 match self { $(Self::$variant => $name,)+ }
             }
         }
@@ -61,7 +61,83 @@ pub struct Chunk {
     constants: Vec<Literal>,
 }
 
+/// One decoded instruction; offsets are byte offsets, not instruction indices.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Instruction {
+    pub offset: usize,
+    pub next_offset: usize,
+    pub line: usize,
+    pub opcode: OpCode,
+    pub operand: Option<usize>,
+}
+
+pub struct Instructions<'a> {
+    chunk: &'a Chunk,
+    offset: usize,
+}
+
+impl Iterator for Instructions<'_> {
+    type Item = Result<Instruction, String>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.offset >= self.chunk.code.len() {
+            return None;
+        }
+        let offset = self.offset;
+        Some(match self.chunk.decode(offset) {
+            Ok((opcode, operand, next_offset)) => {
+                self.offset = next_offset;
+                Ok(Instruction {
+                    offset,
+                    next_offset,
+                    opcode,
+                    line: self.chunk.lines.get(offset).copied().unwrap_or(0),
+                    operand: opcode.has_operand().then_some(operand),
+                })
+            }
+            Err(error) => {
+                self.offset = self.chunk.code.len();
+                Err(error)
+            }
+        })
+    }
+}
+
+impl std::iter::FusedIterator for Instructions<'_> {}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ChunkStats {
+    pub byte_len: usize,
+    pub constant_count: usize,
+    pub instruction_count: usize,
+    pub branch_count: usize,
+}
+
 impl Chunk {
+    pub fn instructions(&self) -> Instructions<'_> {
+        Instructions {
+            chunk: self,
+            offset: 0,
+        }
+    }
+
+    pub fn stats(&self) -> Result<ChunkStats, String> {
+        let mut stats = ChunkStats {
+            byte_len: self.code.len(),
+            constant_count: self.constants.len(),
+            ..ChunkStats::default()
+        };
+        for instruction in self.instructions() {
+            let instruction = instruction?;
+            stats.instruction_count += 1;
+            stats.branch_count += usize::from(matches!(
+                instruction.opcode,
+                OpCode::Jump | OpCode::JumpIfFalse
+            ));
+        }
+        Ok(stats)
+    }
+
     pub fn code(&self) -> &[u8] {
         &self.code
     }
