@@ -25,7 +25,17 @@ impl Session {
     pub fn set_compile_options(&mut self, options: crate::vm::CompileOptions) {
         self.vm.set_compile_options(options);
     }
+    pub fn set_trace_limit(&mut self, limit: usize) {
+        self.vm.set_trace_limit(limit);
+    }
+    pub fn trace(&self) -> &[crate::vm::TraceEvent] {
+        self.vm.trace()
+    }
+    pub fn trace_truncated(&self) -> bool {
+        self.vm.trace_truncated()
+    }
     pub fn run(&mut self, source: &str) -> Result<Vec<String>, RunError> {
+        self.vm.clear_debug_state();
         match self.backend {
             Backend::Tree => self.tree.run(source).map_err(|errors| RunError {
                 code: if errors.iter().any(|e| e.phase == "Runtime") {

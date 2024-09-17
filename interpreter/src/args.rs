@@ -37,6 +37,12 @@ pub struct Cli {
     /// Enable literal folding and constant pooling (VM only)
     #[arg(long)]
     pub optimize: bool,
+    /// Trace VM instructions to stderr (requires an explicit source)
+    #[arg(long, conflicts_with = "inspection")]
+    pub trace: bool,
+    /// Maximum trace events to retain (default 1024; range 1..=1000000)
+    #[arg(long, requires = "trace", value_parser = clap::value_parser!(u32).range(1..=1_000_000))]
+    pub trace_limit: Option<u32>,
     /// Collect before every VM string intern operation
     #[arg(long)]
     pub gc_stress: bool,

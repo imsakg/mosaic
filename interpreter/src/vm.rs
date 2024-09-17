@@ -782,6 +782,13 @@ impl Vm {
         self.trace_truncated
     }
 
+    /// Clear per-run diagnostics when a caller fails before compiling an AST.
+    pub fn clear_debug_state(&mut self) {
+        self.instructions_executed = 0;
+        self.trace.clear();
+        self.trace_truncated = false;
+    }
+
     /// Maximum attempted instructions per run; None is unlimited. Exhaustion
     /// occurs before the next instruction, without rolling back earlier globals.
     pub fn set_instruction_limit(&mut self, limit: Option<u64>) {
@@ -856,9 +863,7 @@ impl Vm {
     }
 
     fn begin_run(&mut self) {
-        self.instructions_executed = 0;
-        self.trace.clear();
-        self.trace_truncated = false;
+        self.clear_debug_state();
         self.stack.clear();
         self.scopes.clear();
     }

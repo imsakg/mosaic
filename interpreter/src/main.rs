@@ -69,6 +69,7 @@ fn app(args: Cli) -> io::Result<u8> {
         (args.gc_stress, "--gc-stress"),
         (args.compile_only, "--compile-only"),
         (args.optimize, "--optimize"),
+        (args.trace, "--trace"),
     ] {
         if enabled && args.backend != Backend::Vm {
             writeln!(io::stderr(), "{flag} requires --backend vm")?;
@@ -79,6 +80,9 @@ fn app(args: Cli) -> io::Result<u8> {
     session.set_compile_options(CompileOptions {
         optimize: args.optimize,
     });
+    if args.trace {
+        session.set_trace_limit(args.trace_limit.unwrap_or(1024) as usize);
+    }
     let source = if let Some(source) = args.eval.as_ref() {
         Some(source.clone())
     } else if let Some(path) = args.program.as_ref() {
@@ -93,6 +97,13 @@ fn app(args: Cli) -> io::Result<u8> {
         None
     };
     let Some(source) = source else {
+        if args.trace {
+            writeln!(
+                io::stderr(),
+                "Tracing requires a source file, - or -e source."
+            )?;
+            return Ok(64);
+        }
         if args.tokens || args.ast || args.disassemble || args.check || args.compile_only {
             writeln!(
                 io::stderr(),
@@ -122,6 +133,26 @@ fn app(args: Cli) -> io::Result<u8> {
         Ok(None) => session.run(&source),
         Err(e) => Err(e),
     };
+    if args.trace {
+        for event in session.trace() {
+            writeln!(
+                io::stderr(),
+                "trace {:04} line={} {} stack={} scopes={}",
+                event.offset,
+                event.line,
+                event.opcode.name(),
+                event.stack_depth,
+                event.scope_depth
+            )?;
+        }
+        if session.trace_truncated() {
+            writeln!(
+                io::stderr(),
+                "trace truncated after {} instructions",
+                session.trace().len()
+            )?;
+        }
+    }
     match result {
         Ok(lines) => {
             for line in lines {
