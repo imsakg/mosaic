@@ -143,6 +143,7 @@ struct Compiler {
     locals: Vec<Local>,
     options: CompileOptions,
     numbers: HashMap<u64, usize>,
+    strings: HashMap<String, usize>,
 }
 
 /// Compile the complete program before any execution or global mutation.
@@ -184,17 +185,26 @@ impl Compiler {
 
     fn constant(&mut self, value: Literal, line: usize) -> Result<usize, String> {
         if self.options.optimize {
-            if let Literal::Number(number) = &value {
-                if let Some(index) = self.numbers.get(&number.to_bits()) {
-                    return Ok(*index);
-                }
+            let existing = match &value {
+                Literal::Number(number) => self.numbers.get(&number.to_bits()),
+                Literal::String(text) => self.strings.get(text),
+                _ => None,
+            };
+            if let Some(index) = existing {
+                return Ok(*index);
             }
         }
         let index = self.chunk.constants.len();
         u32::try_from(index).map_err(|_| compile_error(line, "Too many constants."))?;
         if self.options.optimize {
-            if let Literal::Number(number) = &value {
-                self.numbers.insert(number.to_bits(), index);
+            match &value {
+                Literal::Number(number) => {
+                    self.numbers.insert(number.to_bits(), index);
+                }
+                Literal::String(text) => {
+                    self.strings.insert(text.clone(), index);
+                }
+                _ => {}
             }
         }
         self.chunk.constants.push(value);

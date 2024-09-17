@@ -14,6 +14,36 @@ fn optimized_vm() -> Vm {
 }
 
 #[test]
+fn text_literals_and_name_operands_share_a_deterministic_constant_pool() {
+    let program = vec![
+        var("shared", Some(text("shared"))),
+        print(name("shared")),
+        block(vec![
+            var("shared", Some(text("changed"))),
+            print(name("shared")),
+        ]),
+        expression(assign("shared", text("changed"))),
+        print(name("shared")),
+        print(text("shared")),
+    ];
+    assert_eq!(
+        optimized(&program).constants(),
+        [
+            Literal::String("shared".into()),
+            Literal::String("changed".into())
+        ]
+    );
+    assert!(compile(&program).unwrap().constants().len() > 2);
+    let mut vm = optimized_vm();
+    vm.set_gc_stress(true);
+    assert_eq!(
+        vm.run(&program).unwrap(),
+        ["shared", "changed", "changed", "shared"]
+    );
+    assert_eq!(vm.gc_stats().live_objects, 2);
+}
+
+#[test]
 fn numeric_pool_deduplicates_by_bits_without_merging_signed_zero_or_nan_payloads() {
     let nan = f64::from_bits(0x7ff8_0000_0000_0042);
     let other_nan = f64::from_bits(0x7ff8_0000_0000_0043);
