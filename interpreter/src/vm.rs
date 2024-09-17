@@ -792,6 +792,24 @@ impl Vm {
         self.instructions_executed
     }
 
+    /// Deterministic, owned debug values; no GC handles escape the VM. Lexical
+    /// locals are intentionally excluded. Taking a snapshot does not intern.
+    pub fn global_snapshot(&self) -> Result<Vec<(String, Literal)>, String> {
+        let mut snapshot = Vec::with_capacity(self.globals.len());
+        for (name, value) in &self.globals {
+            let name = self.string(*name, 0)?.to_owned();
+            let value = match value {
+                Value::Nil => Literal::Nil,
+                Value::Bool(value) => Literal::Bool(*value),
+                Value::Number(value) => Literal::Number(*value),
+                Value::String(handle) => Literal::String(self.string(*handle, 0)?.to_owned()),
+            };
+            snapshot.push((name, value));
+        }
+        snapshot.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        Ok(snapshot)
+    }
+
     pub fn gc_stats(&self) -> GcStats {
         self.heap.stats()
     }

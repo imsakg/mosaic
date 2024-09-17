@@ -282,6 +282,59 @@ fn interrupted_scopes_are_swept_but_completed_global_mutations_survive() {
 }
 
 #[test]
+fn global_snapshots_are_sorted_typed_owned_and_exclude_failed_local_scopes() {
+    let mut vm = Vm::with_gc_threshold(1);
+    vm.set_gc_stress(true);
+    let program = [
+        var("z", Some(text("old"))),
+        var("a", Some(nil())),
+        var("flag", Some(boolean(false))),
+        block(vec![
+            var("hidden", Some(text("secret"))),
+            print(name("missing")),
+        ]),
+    ];
+    assert!(vm.run(&program).is_err());
+    let allocations = vm.gc_stats().allocations;
+    let snapshot = vm.global_snapshot().unwrap();
+    assert_eq!(
+        snapshot,
+        [
+            ("a".into(), Literal::Nil),
+            ("flag".into(), Literal::Bool(false)),
+            ("z".into(), Literal::String("old".into()))
+        ]
+    );
+    assert_eq!(vm.gc_stats().allocations, allocations);
+    vm.run(&[expression(assign("z", text("new")))]).unwrap();
+    vm.collect_garbage();
+    assert_eq!(snapshot[2].1, Literal::String("old".into()));
+    assert_eq!(
+        vm.global_snapshot().unwrap()[2].1,
+        Literal::String("new".into())
+    );
+    let special = f64::from_bits(0x7ff8_0000_0000_0042);
+    vm.run(&[
+        var("negative_zero", Some(num(-0.0))),
+        var("nan", Some(num(special))),
+    ])
+    .unwrap();
+    let numbers = vm.global_snapshot().unwrap();
+    for (name, bits) in [
+        ("negative_zero", (-0.0f64).to_bits()),
+        ("nan", special.to_bits()),
+    ] {
+        let (_, Literal::Number(actual)) = numbers.iter().find(|(key, _)| key == name).unwrap()
+        else {
+            panic!("not numeric")
+        };
+        assert_eq!(actual.to_bits(), bits);
+    }
+    drop(vm);
+    assert_eq!(snapshot[2].1, Literal::String("old".into()));
+}
+
+#[test]
 fn instruction_iterator_and_statistics_use_real_byte_offsets() {
     let chunk = compile(&[print(num(2.0)), print(boolean(true))]).unwrap();
     let mut instructions = chunk.instructions();
