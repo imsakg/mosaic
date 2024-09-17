@@ -2,9 +2,18 @@ use clap::Parser;
 use interpreter::{
     args::{Backend, Cli},
     session::{compile_errors, RunError, Session},
+    vm::{compile_with_options, CompileOptions},
 };
 use std::io::{self, IsTerminal, Read, Write};
 use std::process::ExitCode;
+
+fn bytecode_error(message: String) -> RunError {
+    RunError {
+        code: 65,
+        messages: vec![message],
+        output: Vec::new(),
+    }
+}
 
 fn inspected(source: &str, args: &Cli) -> Result<Option<Vec<String>>, RunError> {
     if args.tokens {
@@ -19,30 +28,36 @@ fn inspected(source: &str, args: &Cli) -> Result<Option<Vec<String>>, RunError> 
                 .collect(),
         ));
     }
-    if args.ast || args.check || args.disassemble {
+    if args.ast || args.check || args.disassemble || args.compile_only {
         let ss = interpreter::parse(source).map_err(compile_errors)?;
         if args.ast {
             return Ok(Some(vec![format!("{ss:#?}")]));
         }
-        if args.disassemble {
-            return interpreter::vm::disassemble(&ss)
-                .map(|s| Some(vec![s]))
-                .map_err(|m| RunError {
-                    code: 65,
-                    messages: vec![m],
-                    output: Vec::new(),
-                });
+        let options = CompileOptions {
+            optimize: args.optimize,
+        };
+        if args.disassemble || args.compile_only {
+            let chunk = compile_with_options(&ss, options).map_err(bytecode_error)?;
+            let text = if args.compile_only {
+                let stats = chunk.stats().map_err(bytecode_error)?;
+                format!(
+                    "{} bytes, {} instructions, {} constants, {} branches",
+                    stats.byte_len,
+                    stats.instruction_count,
+                    stats.constant_count,
+                    stats.branch_count
+                )
+            } else {
+                chunk.disassemble().map_err(bytecode_error)?
+            };
+            return Ok(Some(vec![text]));
         }
         match args.backend {
             Backend::Tree => {
                 interpreter::resolver::resolve(ss).map_err(compile_errors)?;
             }
             Backend::Vm => {
-                interpreter::vm::compile(&ss).map_err(|m| RunError {
-                    code: 65,
-                    messages: vec![m],
-                    output: Vec::new(),
-                })?;
+                compile_with_options(&ss, options).map_err(bytecode_error)?;
             }
         }
         return Ok(Some(Vec::new()));
@@ -50,11 +65,20 @@ fn inspected(source: &str, args: &Cli) -> Result<Option<Vec<String>>, RunError> 
     Ok(None)
 }
 fn app(args: Cli) -> io::Result<u8> {
-    if args.gc_stress && args.backend != Backend::Vm {
-        writeln!(io::stderr(), "--gc-stress requires --backend vm")?;
-        return Ok(64);
+    for (enabled, flag) in [
+        (args.gc_stress, "--gc-stress"),
+        (args.compile_only, "--compile-only"),
+        (args.optimize, "--optimize"),
+    ] {
+        if enabled && args.backend != Backend::Vm {
+            writeln!(io::stderr(), "{flag} requires --backend vm")?;
+            return Ok(64);
+        }
     }
     let mut session = Session::new(args.backend, args.gc_stress);
+    session.set_compile_options(CompileOptions {
+        optimize: args.optimize,
+    });
     let source = if let Some(source) = args.eval.as_ref() {
         Some(source.clone())
     } else if let Some(path) = args.program.as_ref() {
@@ -69,7 +93,7 @@ fn app(args: Cli) -> io::Result<u8> {
         None
     };
     let Some(source) = source else {
-        if args.tokens || args.ast || args.disassemble || args.check {
+        if args.tokens || args.ast || args.disassemble || args.check || args.compile_only {
             writeln!(
                 io::stderr(),
                 "Inspection requires a source file, - or -e source."

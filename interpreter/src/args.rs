@@ -9,7 +9,7 @@ pub enum Backend {
 
 /// An educational Lox-style language in Rust.
 #[derive(Parser, Debug)]
-#[command(name="mosaic",version,about,group(clap::ArgGroup::new("inspection").args(["tokens","ast","disassemble","check"]).multiple(false)))]
+#[command(name="mosaic",version,about,group(clap::ArgGroup::new("inspection").args(["tokens","ast","disassemble","check","compile_only"]).multiple(false)))]
 pub struct Cli {
     /// Source file, or '-' to read a complete program from stdin
     #[arg(conflicts_with = "eval")]
@@ -31,6 +31,12 @@ pub struct Cli {
     /// Validate the selected backend without executing
     #[arg(long)]
     pub check: bool,
+    /// Compile VM bytecode and print statistics without executing
+    #[arg(long)]
+    pub compile_only: bool,
+    /// Enable literal folding and constant pooling (VM only)
+    #[arg(long)]
+    pub optimize: bool,
     /// Collect before every VM string intern operation
     #[arg(long)]
     pub gc_stress: bool,

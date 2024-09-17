@@ -22,6 +22,9 @@ impl Session {
             vm,
         }
     }
+    pub fn set_compile_options(&mut self, options: crate::vm::CompileOptions) {
+        self.vm.set_compile_options(options);
+    }
     pub fn run(&mut self, source: &str) -> Result<Vec<String>, RunError> {
         match self.backend {
             Backend::Tree => self.tree.run(source).map_err(|errors| RunError {
