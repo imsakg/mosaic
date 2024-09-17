@@ -253,6 +253,41 @@ fn optimized_and_original_compilation_agree_on_control_flow_and_runtime_errors()
 }
 
 #[test]
+fn bytecode_documentation_mosaic_examples_execute_in_both_modes() {
+    let document =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/bytecode.md"))
+            .unwrap();
+    let mut count = 0;
+    for example in document.split("```mosaic\n").skip(1) {
+        let (source, rest) = example.split_once("\n```").unwrap();
+        let expected = rest
+            .split_once("```output\n")
+            .unwrap()
+            .1
+            .split_once("\n```")
+            .unwrap()
+            .0;
+        let program = interpreter::parse(source).unwrap();
+        for optimize in [false, true] {
+            let chunk = compile_with_options(&program, CompileOptions { optimize }).unwrap();
+            chunk.validate().unwrap();
+            let mut vm = Vm::with_gc_threshold(1);
+            vm.set_gc_stress(true);
+            assert_eq!(
+                vm.run_chunk(&chunk).unwrap().join("\n"),
+                expected,
+                "{source}; optimize={optimize}"
+            );
+        }
+        count += 1;
+    }
+    assert!(
+        count >= 2,
+        "documentation must exercise literals and control flow"
+    );
+}
+
+#[test]
 fn numeric_pool_deduplicates_by_bits_without_merging_signed_zero_or_nan_payloads() {
     let nan = f64::from_bits(0x7ff8_0000_0000_0042);
     let other_nan = f64::from_bits(0x7ff8_0000_0000_0043);
