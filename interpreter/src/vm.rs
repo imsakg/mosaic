@@ -130,16 +130,31 @@ struct Local {
     initialized: bool,
 }
 
+/// Optimization is opt-in to preserve instruction-level debugging and GC behavior.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CompileOptions {
+    pub optimize: bool,
+}
+
 #[derive(Default)]
 struct Compiler {
     chunk: Chunk,
     depth: usize,
     locals: Vec<Local>,
+    options: CompileOptions,
+    numbers: HashMap<u64, usize>,
 }
 
 /// Compile the complete program before any execution or global mutation.
 pub fn compile(statements: &[Stmt]) -> Result<Chunk, String> {
-    let mut compiler = Compiler::default();
+    compile_with_options(statements, CompileOptions::default())
+}
+
+pub fn compile_with_options(statements: &[Stmt], options: CompileOptions) -> Result<Chunk, String> {
+    let mut compiler = Compiler {
+        options,
+        ..Compiler::default()
+    };
     for statement in statements {
         compiler.statement(statement)?;
     }
@@ -168,8 +183,20 @@ impl Compiler {
     }
 
     fn constant(&mut self, value: Literal, line: usize) -> Result<usize, String> {
+        if self.options.optimize {
+            if let Literal::Number(number) = &value {
+                if let Some(index) = self.numbers.get(&number.to_bits()) {
+                    return Ok(*index);
+                }
+            }
+        }
         let index = self.chunk.constants.len();
         u32::try_from(index).map_err(|_| compile_error(line, "Too many constants."))?;
+        if self.options.optimize {
+            if let Literal::Number(number) = &value {
+                self.numbers.insert(number.to_bits(), index);
+            }
+        }
         self.chunk.constants.push(value);
         Ok(index)
     }
@@ -447,6 +474,7 @@ pub struct Vm {
     minimum_gc: usize,
     next_gc: usize,
     gc_stress: bool,
+    compile_options: CompileOptions,
 }
 
 impl Default for Vm {
@@ -472,12 +500,16 @@ impl Vm {
             minimum_gc,
             next_gc: minimum_gc,
             gc_stress: false,
+            compile_options: CompileOptions::default(),
         }
     }
 
     /// Force collection before every intern operation, even when reusing a string.
     pub fn set_gc_stress(&mut self, enabled: bool) {
         self.gc_stress = enabled;
+    }
+    pub fn set_compile_options(&mut self, options: CompileOptions) {
+        self.compile_options = options;
     }
     pub fn gc_stats(&self) -> GcStats {
         self.heap.stats()
@@ -512,7 +544,8 @@ impl Vm {
     pub fn run(&mut self, statements: &[Stmt]) -> Result<Vec<String>, String> {
         self.stack.clear();
         self.scopes.clear();
-        let result = compile(statements).and_then(|chunk| self.execute(&chunk));
+        let result = compile_with_options(statements, self.compile_options)
+            .and_then(|chunk| self.execute(&chunk));
         self.stack.clear();
         self.scopes.clear();
         self.collect_garbage();
