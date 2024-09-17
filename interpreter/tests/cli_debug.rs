@@ -186,6 +186,39 @@ fn session_instruction_limits_reset_on_each_source_unit_including_parse_errors()
 }
 
 #[test]
+fn documented_stdin_source_supports_optimized_tracing() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let mut child = Command::new(env!("CARGO_BIN_EXE_interpreter"))
+        .args([
+            "--backend",
+            "vm",
+            "--trace",
+            "--optimize",
+            "--instruction-limit",
+            "2",
+            "-",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"print 1+2;")
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "3\n");
+    assert!(stderr(&output).contains("CONSTANT"));
+    assert!(!stderr(&output).contains("ADD"));
+    assert!(!stderr(&output).contains("truncated"));
+}
+
+#[test]
 fn compile_only_reports_bytecode_without_executing_or_resolving_globals() {
     let output = mosaic(&["--backend", "vm", "--compile-only", "-e", "print missing;"]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));

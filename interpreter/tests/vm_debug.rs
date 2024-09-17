@@ -335,6 +335,110 @@ fn global_snapshots_are_sorted_typed_owned_and_exclude_failed_local_scopes() {
 }
 
 #[test]
+fn debugging_documentation_examples_obey_their_budgets_and_outcomes() {
+    let document =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/debugging.md"))
+            .unwrap();
+    let mut count = 0;
+    for example in document.split("```mosaic\n").skip(1) {
+        let (source, rest) = example.split_once("\n```").unwrap();
+        let budget: u64 = rest
+            .split_once("```budget\n")
+            .unwrap()
+            .1
+            .split_once("\n```")
+            .unwrap()
+            .0
+            .parse()
+            .unwrap();
+        let outcome = rest
+            .split_once("```outcome\n")
+            .unwrap()
+            .1
+            .split_once("\n```")
+            .unwrap()
+            .0;
+        let (kind, expected) = outcome.split_once('\n').unwrap();
+        for optimize in [false, true] {
+            let mut vm = Vm::with_gc_threshold(1);
+            vm.set_gc_stress(true);
+            vm.set_trace_limit(3);
+            vm.set_compile_options(interpreter::vm::CompileOptions { optimize });
+            vm.set_instruction_limit(Some(budget));
+            let result = vm.run(&interpreter::parse(source).unwrap());
+            match kind {
+                "output" => assert_eq!(result.unwrap().join("\n"), expected),
+                "runtime_error" => {
+                    let error = result.unwrap_err();
+                    assert!(error.contains("Runtime error:"));
+                    assert!(error.contains(expected), "{error}");
+                }
+                "compile_error" => {
+                    let error = result.unwrap_err();
+                    assert!(error.contains("Compile error:"));
+                    assert!(error.contains(expected), "{error}");
+                    assert_eq!(vm.instructions_executed(), 0);
+                }
+                _ => panic!("invalid documented outcome: {kind}"),
+            }
+            assert!(vm.instructions_executed() <= budget);
+            assert!(vm.trace().len() <= 3);
+            assert_eq!(vm.gc_stats().live_objects, 0);
+        }
+        count += 1;
+    }
+    assert!(
+        count >= 3,
+        "document successful, interrupted and rejected programs"
+    );
+}
+
+#[test]
+fn repeated_debug_failures_recover_without_local_roots_output_or_stale_metadata() {
+    let mut vm = Vm::with_gc_threshold(1);
+    vm.set_gc_stress(true);
+    vm.set_trace_limit(3);
+    vm.run(&interpreter::parse("var kept=\"stable\";").unwrap())
+        .unwrap();
+    for iteration in 0..50 {
+        vm.set_compile_options(interpreter::vm::CompileOptions {
+            optimize: iteration % 2 == 0,
+        });
+        for source in [
+            "{ var local=\"secret\"; print \"left\"+missing; }",
+            "var skipped=1; print true or f();",
+        ] {
+            assert!(vm.run(&interpreter::parse(source).unwrap()).is_err());
+            assert_eq!(
+                vm.global_snapshot().unwrap(),
+                [("kept".into(), Literal::String("stable".into()))]
+            );
+            assert_eq!(vm.gc_stats().live_objects, 2);
+        }
+        assert_eq!(vm.instructions_executed(), 0);
+        assert!(vm.trace().is_empty());
+        vm.set_instruction_limit(Some(17));
+        assert!(vm
+            .run(&interpreter::parse("{ var local=\"secret\"; while (true) {} }").unwrap())
+            .unwrap_err()
+            .contains("Instruction budget"));
+        assert_eq!(vm.instructions_executed(), 17);
+        assert_eq!(vm.trace().len(), 3);
+        assert!(vm.trace_truncated());
+        vm.collect_garbage();
+        assert_eq!(vm.gc_stats().live_objects, 2);
+        vm.set_instruction_limit(None);
+        assert_eq!(
+            vm.run(&interpreter::parse("print kept;").unwrap()).unwrap(),
+            ["stable"]
+        );
+        assert_eq!(vm.instructions_executed(), 2);
+        assert_eq!(vm.trace().len(), 2);
+        assert!(!vm.trace_truncated());
+    }
+}
+
+#[test]
 fn instruction_iterator_and_statistics_use_real_byte_offsets() {
     let chunk = compile(&[print(num(2.0)), print(boolean(true))]).unwrap();
     let mut instructions = chunk.instructions();

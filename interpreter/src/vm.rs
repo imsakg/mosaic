@@ -6,6 +6,7 @@
 //! GC handles. Only `nil` and `false` are falsey; division follows IEEE 754.
 
 #![doc = include_str!("../../docs/bytecode.md")]
+#![doc = include_str!("../../docs/debugging.md")]
 
 use crate::ast::{Expr, ExprKind, Literal, Op, Stmt, StmtKind};
 use crate::gc::{GcStats, Handle, Heap};
