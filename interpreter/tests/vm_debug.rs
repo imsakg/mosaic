@@ -154,6 +154,72 @@ fn chunk_runtime_failures_clean_transient_state_and_allow_recovery() {
 }
 
 #[test]
+fn traces_are_opt_in_bounded_and_record_pre_instruction_state() {
+    let program = [block(vec![print(num(3.0))])];
+    let mut vm = Vm::new();
+    vm.run(&program).unwrap();
+    assert!(vm.trace().is_empty());
+    assert!(!vm.trace_truncated());
+    vm.set_trace_limit(16);
+    assert_eq!(vm.run(&program).unwrap(), ["3"]);
+    let trace = vm.trace();
+    assert_eq!(trace.len(), 4);
+    assert_eq!(
+        (
+            trace[0].opcode,
+            trace[0].offset,
+            trace[0].stack_depth,
+            trace[0].scope_depth
+        ),
+        (OpCode::EnterScope, 0, 0, 0)
+    );
+    assert_eq!(
+        (trace[1].opcode, trace[1].stack_depth, trace[1].scope_depth),
+        (OpCode::Constant, 0, 1)
+    );
+    assert_eq!(
+        (trace[2].opcode, trace[2].stack_depth, trace[2].scope_depth),
+        (OpCode::Print, 1, 1)
+    );
+    assert_eq!(trace[3].opcode, OpCode::ExitScope);
+    assert!(!vm.trace_truncated());
+    vm.set_trace_limit(2);
+    vm.run(&program).unwrap();
+    assert_eq!(vm.trace().len(), 2);
+    assert!(vm.trace_truncated());
+    vm.run(&[]).unwrap();
+    assert!(vm.trace().is_empty());
+    assert!(!vm.trace_truncated());
+    vm.set_trace_limit(0);
+    vm.run(&program).unwrap();
+    assert!(vm.trace().is_empty());
+    assert!(!vm.trace_truncated());
+}
+
+#[test]
+fn trace_includes_failing_instructions_and_resets_on_compile_failure() {
+    let mut vm = Vm::new();
+    vm.set_trace_limit(4);
+    let mut missing = name("missing");
+    missing.line = 42;
+    assert!(vm.run(&[print(missing)]).is_err());
+    assert_eq!(
+        (vm.trace()[0].opcode, vm.trace()[0].line),
+        (OpCode::GetName, 42)
+    );
+    let saved = vm.trace().to_vec();
+    vm.collect_garbage();
+    assert_eq!(saved, vm.trace());
+    let invalid = expression(unary(interpreter::ast::Op::Add, num(1.0)));
+    assert!(vm.run(&[invalid]).unwrap_err().contains("Compile error"));
+    assert!(vm.trace().is_empty());
+    assert!(!vm.trace_truncated());
+    vm.run(&[print(boolean(true))]).unwrap();
+    assert_eq!(vm.trace().len(), 2);
+    assert_eq!(vm.trace()[0].opcode, OpCode::True);
+}
+
+#[test]
 fn instruction_iterator_and_statistics_use_real_byte_offsets() {
     let chunk = compile(&[print(num(2.0)), print(boolean(true))]).unwrap();
     let mut instructions = chunk.instructions();

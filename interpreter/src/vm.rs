@@ -664,6 +664,17 @@ impl Compiler {
     }
 }
 
+/// Metadata captured immediately before an instruction. No heap handles or
+/// user string payloads are retained by tracing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TraceEvent {
+    pub offset: usize,
+    pub line: usize,
+    pub opcode: OpCode,
+    pub stack_depth: usize,
+    pub scope_depth: usize,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Value {
     Nil,
@@ -712,6 +723,9 @@ pub struct Vm {
     next_gc: usize,
     gc_stress: bool,
     compile_options: CompileOptions,
+    trace_limit: usize,
+    trace: Vec<TraceEvent>,
+    trace_truncated: bool,
 }
 
 impl Default for Vm {
@@ -738,6 +752,9 @@ impl Vm {
             next_gc: minimum_gc,
             gc_stress: false,
             compile_options: CompileOptions::default(),
+            trace_limit: 0,
+            trace: Vec::new(),
+            trace_truncated: false,
         }
     }
 
@@ -748,6 +765,19 @@ impl Vm {
     pub fn set_compile_options(&mut self, options: CompileOptions) {
         self.compile_options = options;
     }
+    /// Retain the first `limit` events per run; zero disables tracing.
+    pub fn set_trace_limit(&mut self, limit: usize) {
+        self.trace_limit = limit;
+        self.trace = Vec::new();
+        self.trace_truncated = false;
+    }
+    pub fn trace(&self) -> &[TraceEvent] {
+        &self.trace
+    }
+    pub fn trace_truncated(&self) -> bool {
+        self.trace_truncated
+    }
+
     pub fn gc_stats(&self) -> GcStats {
         self.heap.stats()
     }
@@ -794,6 +824,8 @@ impl Vm {
     }
 
     fn begin_run(&mut self) {
+        self.trace.clear();
+        self.trace_truncated = false;
         self.stack.clear();
         self.scopes.clear();
     }
@@ -854,6 +886,19 @@ impl Vm {
         while ip < chunk.code.len() {
             let (opcode, operand, next) = chunk.decode(ip)?;
             let line = chunk.lines[ip];
+            if self.trace_limit > 0 {
+                if self.trace.len() < self.trace_limit {
+                    self.trace.push(TraceEvent {
+                        offset: ip,
+                        line,
+                        opcode,
+                        stack_depth: self.stack.len(),
+                        scope_depth: self.scopes.len(),
+                    });
+                } else {
+                    self.trace_truncated = true;
+                }
+            }
             ip = next;
             match opcode {
                 OpCode::Constant => {
