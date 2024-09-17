@@ -160,6 +160,17 @@ fn fold_literal(expression: &Expr) -> Option<Literal> {
                 _ => return None,
             })
         }
+        ExprKind::Logical(left, operator, right) => {
+            // Inspect both sides even when the left operand would short-circuit.
+            // Unsupported/invalid syntax must still reach normal compilation.
+            let (left, right) = (fold_literal(left)?, fold_literal(right)?);
+            let truthy = !matches!(left, Literal::Nil | Literal::Bool(false));
+            match operator {
+                Op::And => Some(if truthy { right } else { left }),
+                Op::Or => Some(if truthy { left } else { right }),
+                _ => None,
+            }
+        }
         ExprKind::Unary(operator, operand) => {
             let value = fold_literal(operand)?;
             match (operator, value) {

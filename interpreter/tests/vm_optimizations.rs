@@ -196,6 +196,63 @@ fn bounded_string_concatenation_and_literal_equality_are_folded() {
 }
 
 #[test]
+fn fully_literal_logical_folding_returns_operands_but_keeps_validation() {
+    for left in [nil(), boolean(false), boolean(true), num(0.0), text("")] {
+        for operator in [Op::And, Op::Or] {
+            let program = [print(logical(left.clone(), operator, text("right")))];
+            let listing = optimized(&program).disassemble().unwrap();
+            assert!(!listing.contains("JUMP"), "{listing}");
+            assert_eq!(optimized_vm().run(&program), Vm::new().run(&program));
+        }
+    }
+    let unsupported = logical(
+        boolean(true),
+        Op::Or,
+        expr(ExprKind::Call(Box::new(name("f")), vec![])),
+    );
+    assert!(optimized_vm()
+        .run(&[print(unsupported)])
+        .unwrap_err()
+        .contains("Calls are not supported"));
+    let invalid = logical(boolean(false), Op::And, unary(Op::Add, num(1.0)));
+    assert!(optimized_vm()
+        .run(&[print(invalid)])
+        .unwrap_err()
+        .contains("Invalid unary operator"));
+    let invalid_logical = logical(nil(), Op::Add, num(1.0));
+    assert!(optimized_vm()
+        .run(&[print(invalid_logical)])
+        .unwrap_err()
+        .contains("Invalid logical operator"));
+    let effects = [
+        var("x", Some(num(0.0))),
+        print(logical(boolean(false), Op::And, assign("x", num(1.0)))),
+        print(logical(nil(), Op::Or, assign("x", num(2.0)))),
+        print(name("x")),
+    ];
+    assert_eq!(optimized_vm().run(&effects).unwrap(), ["false", "2", "2"]);
+    assert!(optimized(&effects).disassemble().unwrap().contains("JUMP"));
+}
+
+#[test]
+fn optimized_and_original_compilation_agree_on_control_flow_and_runtime_errors() {
+    for source in [
+        "var x=0; while (x<4) { x=x+1; if (x<2) print 1+2; else print x; }",
+        "var x=0; print (x=1)+(x=2); print x;",
+        "print false and -nil; print true or missing;",
+        "var x=1; { var x=2; print x*(3+4); } print x;",
+        "print 1+2; print 1+false;",
+    ] {
+        let program = interpreter::parse(source).unwrap();
+        let mut fast = optimized_vm();
+        fast.set_gc_stress(true);
+        let mut original = Vm::with_gc_threshold(1);
+        original.set_gc_stress(true);
+        assert_eq!(fast.run(&program), original.run(&program), "{source}");
+    }
+}
+
+#[test]
 fn numeric_pool_deduplicates_by_bits_without_merging_signed_zero_or_nan_payloads() {
     let nan = f64::from_bits(0x7ff8_0000_0000_0042);
     let other_nan = f64::from_bits(0x7ff8_0000_0000_0043);
