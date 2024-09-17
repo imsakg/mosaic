@@ -162,6 +162,40 @@ fn numeric_optimizer_does_not_apply_algebraic_shortcuts_or_hide_invalid_operator
 }
 
 #[test]
+fn bounded_string_concatenation_and_literal_equality_are_folded() {
+    let joined = [print(binary(text("hi "), Op::Add, text("🎼")))];
+    assert_eq!(optimized(&joined).code().len(), 6);
+    assert_eq!(optimized_vm().run(&joined).unwrap(), ["hi 🎼"]);
+    let values = [
+        nil(),
+        boolean(false),
+        num(0.0),
+        num(-0.0),
+        num(f64::NAN),
+        text("same"),
+        text("different"),
+    ];
+    for left in &values {
+        for right in &values {
+            for operator in [Op::Equal, Op::NotEqual] {
+                let program = [print(binary(left.clone(), operator, right.clone()))];
+                assert_eq!(
+                    optimized(&program).code().len(),
+                    2,
+                    "{operator:?}: {left:?} {right:?}"
+                );
+                assert_eq!(optimized_vm().run(&program), Vm::new().run(&program));
+            }
+        }
+    }
+    let large = [print(binary(text(&"🎼".repeat(1024)), Op::Add, text("x")))];
+    assert!(optimized(&large).disassemble().unwrap().contains("ADD"));
+    assert_eq!(optimized_vm().run(&large), Vm::new().run(&large));
+    let invalid = [print(binary(text("one"), Op::Add, num(1.0)))];
+    assert_eq!(optimized_vm().run(&invalid), Vm::new().run(&invalid));
+}
+
+#[test]
 fn numeric_pool_deduplicates_by_bits_without_merging_signed_zero_or_nan_payloads() {
     let nan = f64::from_bits(0x7ff8_0000_0000_0042);
     let other_nan = f64::from_bits(0x7ff8_0000_0000_0043);

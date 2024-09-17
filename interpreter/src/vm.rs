@@ -123,15 +123,29 @@ fn runtime_error(line: usize, message: &str) -> String {
     format!("[line {line}] Runtime error: {message}")
 }
 
+const MAX_FOLDED_STRING_BYTES: usize = 4096;
+
 // Only recursively literal expressions may be folded. Returning None leaves
 // both compile-time validation and runtime type errors on their original path.
 fn fold_literal(expression: &Expr) -> Option<Literal> {
     match &expression.kind {
         ExprKind::Literal(value) => Some(value.clone()),
         ExprKind::Binary(left, operator, right) => {
-            let (Literal::Number(left), Literal::Number(right)) =
-                (fold_literal(left)?, fold_literal(right)?)
-            else {
+            let (left, right) = (fold_literal(left)?, fold_literal(right)?);
+            match operator {
+                Op::Equal => return Some(Literal::Bool(left == right)),
+                Op::NotEqual => return Some(Literal::Bool(left != right)),
+                Op::Add => {
+                    if let (Literal::String(left), Literal::String(right)) = (&left, &right) {
+                        if left.len().checked_add(right.len())? > MAX_FOLDED_STRING_BYTES {
+                            return None;
+                        }
+                        return Some(Literal::String(format!("{left}{right}")));
+                    }
+                }
+                _ => {}
+            }
+            let (Literal::Number(left), Literal::Number(right)) = (left, right) else {
                 return None;
             };
             Some(match operator {
