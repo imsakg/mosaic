@@ -70,6 +70,7 @@ fn app(args: Cli) -> io::Result<u8> {
         (args.compile_only, "--compile-only"),
         (args.optimize, "--optimize"),
         (args.trace, "--trace"),
+        (args.instruction_limit.is_some(), "--instruction-limit"),
     ] {
         if enabled && args.backend != Backend::Vm {
             writeln!(io::stderr(), "{flag} requires --backend vm")?;
@@ -77,6 +78,7 @@ fn app(args: Cli) -> io::Result<u8> {
         }
     }
     let mut session = Session::new(args.backend, args.gc_stress);
+    session.set_instruction_limit(args.instruction_limit);
     session.set_compile_options(CompileOptions {
         optimize: args.optimize,
     });

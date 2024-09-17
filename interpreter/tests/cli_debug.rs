@@ -99,6 +99,93 @@ fn session_parse_errors_clear_traces_from_previous_runs() {
 }
 
 #[test]
+fn instruction_limit_interrupts_cli_loops_and_preserves_exit_codes() {
+    let looped = mosaic(&[
+        "--backend",
+        "vm",
+        "--instruction-limit",
+        "19",
+        "--trace",
+        "--trace-limit",
+        "2",
+        "-e",
+        "while (true) { print 1; }",
+    ]);
+    assert_eq!(looped.status.code(), Some(70), "{}", stderr(&looped));
+    assert!(stdout(&looped).is_empty());
+    assert!(stderr(&looped).contains("Instruction budget exhausted"));
+    assert!(stderr(&looped).contains("trace truncated after 2 instructions"));
+    let exact = mosaic(&[
+        "--backend",
+        "vm",
+        "--instruction-limit",
+        "2",
+        "-e",
+        "print 1;",
+    ]);
+    assert_eq!(exact.status.code(), Some(0));
+    assert_eq!(stdout(&exact), "1\n");
+    let zero = mosaic(&[
+        "--backend",
+        "vm",
+        "--instruction-limit",
+        "0",
+        "-e",
+        "print 1;",
+    ]);
+    assert_eq!(zero.status.code(), Some(70));
+    let empty = mosaic(&["--backend", "vm", "--instruction-limit", "0", "-e", ""]);
+    assert_eq!(empty.status.code(), Some(0));
+    let unsupported = mosaic(&[
+        "--backend",
+        "vm",
+        "--instruction-limit",
+        "0",
+        "-e",
+        "fun f() {}",
+    ]);
+    assert_eq!(unsupported.status.code(), Some(65));
+    for args in [
+        vec!["--instruction-limit", "1", "-e", "print 1;"],
+        vec![
+            "--backend",
+            "vm",
+            "--instruction-limit",
+            "1",
+            "--compile-only",
+            "-e",
+            "print 1;",
+        ],
+        vec![
+            "--backend",
+            "vm",
+            "--instruction-limit",
+            "-1",
+            "-e",
+            "print 1;",
+        ],
+    ] {
+        assert_eq!(mosaic(&args).status.code(), Some(64), "{args:?}");
+    }
+}
+
+#[test]
+fn session_instruction_limits_reset_on_each_source_unit_including_parse_errors() {
+    use interpreter::{args::Backend, session::Session};
+    let mut session = Session::new(Backend::Vm, true);
+    session.set_instruction_limit(Some(2));
+    assert_eq!(session.run("print 1;").unwrap(), ["1"]);
+    assert_eq!(session.instructions_executed(), 2);
+    assert_eq!(session.run("print 2;").unwrap(), ["2"]);
+    assert!(session.run("print ;").is_err());
+    assert_eq!(session.instructions_executed(), 0);
+    assert_eq!(session.run("while (true) {}").unwrap_err().code, 70);
+    assert_eq!(session.instructions_executed(), 2);
+    session.set_instruction_limit(None);
+    assert_eq!(session.run("print 1+2;").unwrap(), ["3"]);
+}
+
+#[test]
 fn compile_only_reports_bytecode_without_executing_or_resolving_globals() {
     let output = mosaic(&["--backend", "vm", "--compile-only", "-e", "print missing;"]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));

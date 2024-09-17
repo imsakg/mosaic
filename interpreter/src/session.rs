@@ -34,6 +34,12 @@ impl Session {
     pub fn trace_truncated(&self) -> bool {
         self.vm.trace_truncated()
     }
+    pub fn set_instruction_limit(&mut self, limit: Option<u64>) {
+        self.vm.set_instruction_limit(limit);
+    }
+    pub fn instructions_executed(&self) -> u64 {
+        self.vm.instructions_executed()
+    }
     pub fn run(&mut self, source: &str) -> Result<Vec<String>, RunError> {
         self.vm.clear_debug_state();
         match self.backend {

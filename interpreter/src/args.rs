@@ -43,6 +43,9 @@ pub struct Cli {
     /// Maximum trace events to retain (default 1024; range 1..=1000000)
     #[arg(long, requires = "trace", value_parser = clap::value_parser!(u32).range(1..=1_000_000))]
     pub trace_limit: Option<u32>,
+    /// Maximum attempted VM instructions per source unit; zero allows none
+    #[arg(long, conflicts_with = "inspection")]
+    pub instruction_limit: Option<u64>,
     /// Collect before every VM string intern operation
     #[arg(long)]
     pub gc_stress: bool,
