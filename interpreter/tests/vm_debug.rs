@@ -4,6 +4,42 @@ use interpreter::ast::Literal;
 use interpreter::vm::{compile, OpCode, Vm};
 
 #[test]
+fn source_mapping_covers_operand_bytes_and_folded_operator_locations() {
+    let mut left = num(1.0);
+    left.line = 10;
+    let mut right = num(2.0);
+    right.line = 11;
+    let mut value = binary(left, interpreter::ast::Op::Add, right);
+    value.line = 12;
+    let mut statement = print(value);
+    statement.line = 13;
+    let original = compile(&[statement.clone()]).unwrap();
+    assert_eq!(original.line_at(0), Some(10));
+    assert_eq!(original.line_at(4), Some(10));
+    assert_eq!(original.line_at(5), Some(11));
+    assert_eq!(original.line_at(10), Some(12));
+    assert_eq!(original.line_at(original.code().len()), None);
+    assert_eq!(original.line_at(usize::MAX), None);
+    assert_eq!(original.offsets_for_line(10).unwrap(), [0]);
+    assert!(original.offsets_for_line(99).unwrap().is_empty());
+    let folded = interpreter::vm::compile_with_options(
+        &[statement],
+        interpreter::vm::CompileOptions { optimize: true },
+    )
+    .unwrap();
+    assert_eq!(folded.line_at(0), Some(12));
+    assert_eq!(folded.line_at(4), Some(12));
+    assert_eq!(folded.offsets_for_line(13).unwrap(), [5]);
+    assert_eq!(
+        folded
+            .instructions()
+            .map(|i| i.unwrap().line)
+            .collect::<Vec<_>>(),
+        [12, 13]
+    );
+}
+
+#[test]
 fn instruction_iterator_and_statistics_use_real_byte_offsets() {
     let chunk = compile(&[print(num(2.0)), print(boolean(true))]).unwrap();
     let mut instructions = chunk.instructions();

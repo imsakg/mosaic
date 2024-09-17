@@ -114,6 +114,23 @@ pub struct ChunkStats {
 }
 
 impl Chunk {
+    /// Source line for any byte, including operand bytes; None past the chunk.
+    pub fn line_at(&self, offset: usize) -> Option<usize> {
+        self.lines.get(offset).copied()
+    }
+
+    /// Instruction starts attributed to a source line (not operand byte offsets).
+    pub fn offsets_for_line(&self, line: usize) -> Result<Vec<usize>, String> {
+        let mut offsets = Vec::new();
+        for instruction in self.instructions() {
+            let instruction = instruction?;
+            if instruction.line == line {
+                offsets.push(instruction.offset);
+            }
+        }
+        Ok(offsets)
+    }
+
     pub fn instructions(&self) -> Instructions<'_> {
         Instructions {
             chunk: self,
