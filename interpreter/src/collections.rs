@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 const MAX_ITEMS: usize = 65_536;
 const MAX_DEPTH: usize = 64;
 pub(crate) const NAMES: &[&str] = &[
-    "split", "entries", "values", "keys", "remove", "put", "has", "map", "slice", "concat",
+    "join", "split", "entries", "values", "keys", "remove", "put", "has", "map", "slice", "concat",
     "append", "get", "len", "tuple",
 ];
 
@@ -257,6 +257,35 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                 }
             }
             tuple(values, line)
+        }
+        "join" => {
+            const MAX_BYTES: usize = 1_048_576;
+            arity(name, &args, 2, line)?;
+            let values = tuple_arg(&args[0], line)?;
+            let Value::String(separator) = &args[1] else {
+                return Err(error("join separator must be a string."));
+            };
+            let mut result = String::new();
+            for (index, value) in values.iter().enumerate() {
+                let Value::String(text) = value else {
+                    return Err(error("join elements must be strings."));
+                };
+                let added = if index == 0 {
+                    text.len()
+                } else {
+                    text.len()
+                        .checked_add(separator.len())
+                        .ok_or_else(|| error("join result exceeds 1048576 UTF-8 bytes."))?
+                };
+                if added > MAX_BYTES - result.len() {
+                    return Err(error("join result exceeds 1048576 UTF-8 bytes."));
+                }
+                if index != 0 {
+                    result.push_str(separator);
+                }
+                result.push_str(text);
+            }
+            Ok(Value::String(result.into()))
         }
         _ => Err(error("Unknown collection function.")),
     }

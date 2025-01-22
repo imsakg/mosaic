@@ -202,4 +202,21 @@ fn split_handles_literal_separators_and_empty_patterns() {
         .contains("item limit"));
 }
 
+#[test]
+fn join_requires_strings_and_limits_result_bytes() {
+    assert_eq!(
+        output(
+            r#"print join(tuple("a", "é", "🦀"), "|"); print join(tuple(), ","); print join(tuple("a"), "-");"#
+        ),
+        ["a|é|🦀", "", "a"]
+    );
+    for source in [
+        r#"join(tuple("a", 1), ",");"#,
+        "join(tuple(), 1);",
+        r#"join(tuple(repeat("x", 1048576), "y"), "");"#,
+    ] {
+        assert!(Interpreter::new().run(source).is_err(), "{source}");
+    }
+}
+
 // More collection contracts.
