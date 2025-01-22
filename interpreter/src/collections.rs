@@ -4,7 +4,7 @@ use crate::runtime::Value;
 
 const MAX_ITEMS: usize = 65_536;
 const MAX_DEPTH: usize = 64;
-pub(crate) const NAMES: &[&str] = &["len", "tuple"];
+pub(crate) const NAMES: &[&str] = &["get", "len", "tuple"];
 
 fn tuple(values: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
     if values.len() > MAX_ITEMS {
@@ -42,6 +42,25 @@ fn arity(name: &str, args: &[Value], expected: usize, line: usize) -> Result<(),
     }
 }
 
+fn tuple_arg(value: &Value, line: usize) -> Result<&[Value], Diagnostic> {
+    if let Value::Tuple(values) = value {
+        Ok(values)
+    } else {
+        Err(Diagnostic::new("Runtime", line, "Expected a tuple."))
+    }
+}
+fn index_arg(value: &Value, line: usize) -> Result<f64, Diagnostic> {
+    if let Value::Number(n) = value {
+        if n.is_finite() && *n >= 0.0 && n.fract() == 0.0 {
+            return Ok(*n);
+        }
+    }
+    Err(Diagnostic::new(
+        "Runtime",
+        line,
+        "Index must be a finite nonnegative integer.",
+    ))
+}
 pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
     let error = |message: &str| Diagnostic::new("Runtime", line, message);
     match name {
@@ -54,6 +73,16 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                 _ => return Err(error("len requires a string or tuple.")),
             };
             Ok(Value::Number(length as f64))
+        }
+        "get" => {
+            arity(name, &args, 2, line)?;
+            let values = tuple_arg(&args[0], line)?;
+            let index = index_arg(&args[1], line)?;
+            Ok(if index < values.len() as f64 {
+                values[index as usize].clone()
+            } else {
+                Value::Nil
+            })
         }
         _ => Err(error("Unknown collection function.")),
     }

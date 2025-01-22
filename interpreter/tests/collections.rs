@@ -48,4 +48,18 @@ fn introspection_distinguishes_values_and_renders_without_coercion() {
     assert!(Interpreter::new().run("type_of(1, 2);").is_err());
 }
 
+#[test]
+fn tuple_lookup_checks_indices_without_panicking() {
+    assert_eq!(output("print get(tuple(9, nil), 0); print get(tuple(9), 1); print get(tuple(), 99999999999999999999);"), ["9", "nil", "nil"]);
+    for source in [
+        "get(tuple(), -1);",
+        "get(tuple(), 0.5);",
+        "get(tuple(), 0/0);",
+        "get(tuple(), 1/0);",
+        "get(1, 0);",
+    ] {
+        assert!(Interpreter::new().run(source).is_err(), "{source}");
+    }
+}
+
 // More collection contracts.
