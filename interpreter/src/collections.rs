@@ -4,7 +4,7 @@ use crate::runtime::Value;
 
 const MAX_ITEMS: usize = 65_536;
 const MAX_DEPTH: usize = 64;
-pub(crate) const NAMES: &[&str] = &["concat", "append", "get", "len", "tuple"];
+pub(crate) const NAMES: &[&str] = &["slice", "concat", "append", "get", "len", "tuple"];
 
 fn tuple(values: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
     if values.len() > MAX_ITEMS {
@@ -98,6 +98,35 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                 return Err(error("Collection item limit exceeded."));
             }
             tuple(left.iter().chain(right).cloned().collect(), line)
+        }
+        "slice" => {
+            arity(name, &args, 3, line)?;
+            let start = index_arg(&args[1], line)?;
+            let end = index_arg(&args[2], line)?;
+            if start > end {
+                return Err(error("Slice start must not exceed its end."));
+            }
+            match &args[0] {
+                Value::Tuple(values) => tuple(
+                    values[(start.min(values.len() as f64) as usize)
+                        ..(end.min(values.len() as f64) as usize)]
+                        .to_vec(),
+                    line,
+                ),
+                Value::String(text) => {
+                    let length = text.chars().count();
+                    let start = start.min(length as f64) as usize;
+                    let end = end.min(length as f64) as usize;
+                    Ok(Value::String(
+                        text.chars()
+                            .skip(start)
+                            .take(end - start)
+                            .collect::<String>()
+                            .into(),
+                    ))
+                }
+                _ => Err(error("slice requires a string or tuple.")),
+            }
         }
         _ => Err(error("Unknown collection function.")),
     }

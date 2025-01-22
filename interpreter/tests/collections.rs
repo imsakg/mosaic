@@ -75,4 +75,22 @@ fn concatenation_preserves_order_and_nested_values() {
     assert!(Interpreter::new().run("concat(tuple(), 1);").is_err());
 }
 
+#[test]
+fn slices_clamp_unicode_and_tuple_boundaries() {
+    assert_eq!(
+        output(
+            r#"print slice(tuple(1, 2, 3), 1, 9); print slice("aé🦀z", 1, 3); print slice("hello", 99, 100); print slice(tuple(), 0, 0);"#
+        ),
+        ["(2, 3)", "é🦀", "", "()"]
+    );
+    for source in [
+        "slice(tuple(), 2, 1);",
+        "slice(1, 0, 1);",
+        "slice(tuple(), -1, 0);",
+        "slice(tuple(), 0, 0.5);",
+    ] {
+        assert!(Interpreter::new().run(source).is_err(), "{source}");
+    }
+}
+
 // More collection contracts.
