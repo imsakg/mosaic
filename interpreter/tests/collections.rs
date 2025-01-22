@@ -166,4 +166,13 @@ fn keys_are_returned_in_lexicographic_order() {
     assert!(Interpreter::new().run("keys(tuple());").is_err());
 }
 
+#[test]
+fn values_follow_the_same_key_order_as_keys() {
+    assert_eq!(
+        output(r#"print values(map(tuple("z", tuple(1)), tuple("a", nil))); print values(map());"#),
+        ["(nil, (1,))", "()"]
+    );
+    assert!(Interpreter::new().run("values(1);").is_err());
+}
+
 // More collection contracts.
