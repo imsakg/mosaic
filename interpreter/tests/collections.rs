@@ -62,4 +62,11 @@ fn tuple_lookup_checks_indices_without_panicking() {
     }
 }
 
+#[test]
+fn append_returns_a_new_tuple_without_mutating_aliases() {
+    assert_eq!(output("var a = tuple(1); var b = a; print append(a, 2); print b; print append(tuple(), tuple(3));"), ["(1, 2)", "(1,)", "((3,),)"]);
+    assert!(Interpreter::new().run("append(1, 2);").is_err());
+    assert!(Interpreter::new().run("append(tuple());").is_err());
+}
+
 // More collection contracts.

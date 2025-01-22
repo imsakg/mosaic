@@ -4,7 +4,7 @@ use crate::runtime::Value;
 
 const MAX_ITEMS: usize = 65_536;
 const MAX_DEPTH: usize = 64;
-pub(crate) const NAMES: &[&str] = &["get", "len", "tuple"];
+pub(crate) const NAMES: &[&str] = &["append", "get", "len", "tuple"];
 
 fn tuple(values: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
     if values.len() > MAX_ITEMS {
@@ -83,6 +83,12 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
             } else {
                 Value::Nil
             })
+        }
+        "append" => {
+            arity(name, &args, 2, line)?;
+            let mut values = tuple_arg(&args[0], line)?.to_vec();
+            values.push(args[1].clone());
+            tuple(values, line)
         }
         _ => Err(error("Unknown collection function.")),
     }
