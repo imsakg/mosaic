@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 const MAX_ITEMS: usize = 65_536;
 const MAX_DEPTH: usize = 64;
 pub(crate) const NAMES: &[&str] = &[
-    "entries", "values", "keys", "remove", "put", "has", "map", "slice", "concat", "append", "get",
-    "len", "tuple",
+    "split", "entries", "values", "keys", "remove", "put", "has", "map", "slice", "concat",
+    "append", "get", "len", "tuple",
 ];
 
 fn tuple(values: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
@@ -233,6 +233,29 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
+            tuple(values, line)
+        }
+        "split" => {
+            arity(name, &args, 2, line)?;
+            let (Value::String(text), Value::String(separator)) = (&args[0], &args[1]) else {
+                return Err(error("split requires two strings."));
+            };
+            let mut values = Vec::new();
+            if separator.is_empty() {
+                for character in text.chars() {
+                    if values.len() == MAX_ITEMS {
+                        return Err(error("Collection item limit exceeded."));
+                    }
+                    values.push(Value::String(character.to_string().into()));
+                }
+            } else {
+                for part in text.split(separator.as_ref()) {
+                    if values.len() == MAX_ITEMS {
+                        return Err(error("Collection item limit exceeded."));
+                    }
+                    values.push(Value::String(part.into()));
+                }
+            }
             tuple(values, line)
         }
         _ => Err(error("Unknown collection function.")),

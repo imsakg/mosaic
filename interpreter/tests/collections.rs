@@ -186,4 +186,20 @@ fn entries_round_trip_through_the_map_constructor() {
     assert!(Interpreter::new().run("entries(1);").is_err());
 }
 
+#[test]
+fn split_handles_literal_separators_and_empty_patterns() {
+    assert_eq!(
+        output(
+            r#"print split("a::b::", "::"); print split("aé🦀", ""); print split("", ""); print split("", ",");"#
+        ),
+        ["(a, b, )", "(a, é, 🦀)", "()", "(,)"]
+    );
+    assert!(Interpreter::new().run(r#"split(1, ",");"#).is_err());
+    assert!(Interpreter::new()
+        .run(r#"split(repeat(",", 65536), ",");"#)
+        .unwrap_err()[0]
+        .message
+        .contains("item limit"));
+}
+
 // More collection contracts.
