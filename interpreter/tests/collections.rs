@@ -114,4 +114,17 @@ fn maps_use_string_keys_and_deterministic_value_semantics() {
     }
 }
 
+#[test]
+fn map_lookup_distinguishes_absent_keys_from_stored_nil() {
+    assert_eq!(
+        output(
+            r#"var m = map(tuple("x", nil), tuple("a", 3)); print get(m, "a"); print get(m, "x"); print get(m, "unknown"); print has(m, "x"); print has(m, "unknown");"#
+        ),
+        ["3", "nil", "nil", "true", "false"]
+    );
+    for source in ["get(map(), 1);", "has(map(), 1);", r#"has(tuple(), "x");"#] {
+        assert!(Interpreter::new().run(source).is_err(), "{source}");
+    }
+}
+
 // More collection contracts.

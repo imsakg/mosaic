@@ -5,7 +5,9 @@ use std::collections::BTreeMap;
 
 const MAX_ITEMS: usize = 65_536;
 const MAX_DEPTH: usize = 64;
-pub(crate) const NAMES: &[&str] = &["map", "slice", "concat", "append", "get", "len", "tuple"];
+pub(crate) const NAMES: &[&str] = &[
+    "has", "map", "slice", "concat", "append", "get", "len", "tuple",
+];
 
 fn tuple(values: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
     if values.len() > MAX_ITEMS {
@@ -94,6 +96,14 @@ fn map_value(values: BTreeMap<String, Value>, line: usize) -> Result<Value, Diag
     Ok(Value::Map(values.into()))
 }
 
+fn map_arg(value: &Value, line: usize) -> Result<&BTreeMap<String, Value>, Diagnostic> {
+    if let Value::Map(values) = value {
+        Ok(values)
+    } else {
+        Err(Diagnostic::new("Runtime", line, "Expected a map."))
+    }
+}
+
 pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
     let error = |message: &str| Diagnostic::new("Runtime", line, message);
     match name {
@@ -110,6 +120,12 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
         }
         "get" => {
             arity(name, &args, 2, line)?;
+            if let Value::Map(values) = &args[0] {
+                return Ok(values
+                    .get(key_arg(&args[1], line)?)
+                    .cloned()
+                    .unwrap_or(Value::Nil));
+            }
             let values = tuple_arg(&args[0], line)?;
             let index = index_arg(&args[1], line)?;
             Ok(if index < values.len() as f64 {
@@ -172,6 +188,12 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                 values.insert(key_arg(&pair[0], line)?.to_owned(), pair[1].clone());
             }
             map_value(values, line)
+        }
+        "has" => {
+            arity(name, &args, 2, line)?;
+            Ok(Value::Bool(
+                map_arg(&args[0], line)?.contains_key(key_arg(&args[1], line)?),
+            ))
         }
         _ => Err(error("Unknown collection function.")),
     }
