@@ -4,6 +4,8 @@ use crate::error::Diagnostic;
 use crate::runtime::{Heap, HeapStats, Id, Object, Value};
 use std::collections::HashMap;
 
+const INSPECTION_NAMES: &[&str] = &["type_of", "str"];
+
 type Result<T> = std::result::Result<T, Diagnostic>;
 #[derive(Debug)]
 enum Flow {
@@ -31,6 +33,7 @@ impl Interpreter {
             values: crate::builtins::NAMES
                 .iter()
                 .chain(crate::collections::NAMES.iter())
+                .chain(INSPECTION_NAMES.iter())
                 .map(|&name| (name.into(), Value::Native(name)))
                 .collect(),
         });
@@ -371,6 +374,15 @@ impl Interpreter {
     }
     fn call(&mut self, value: Value, args: Vec<Value>, line: usize) -> Result<Value> {
         if let Value::Native(name) = value {
+            if INSPECTION_NAMES.contains(&name) {
+                self.arity(1, args.len(), line)?;
+                let text = if name == "str" {
+                    self.display(&args[0])
+                } else {
+                    self.type_name(&args[0]).into()
+                };
+                return Ok(Value::String(text.into()));
+            }
             return if crate::collections::NAMES.contains(&name) {
                 crate::collections::call(name, args, line)
             } else {
@@ -453,6 +465,22 @@ impl Interpreter {
             Flow::Return(v) => v,
             Flow::Normal => Value::Nil,
         })
+    }
+    fn type_name(&self, value: &Value) -> &'static str {
+        match value {
+            Value::Nil => "nil",
+            Value::Bool(_) => "boolean",
+            Value::Number(_) => "number",
+            Value::String(_) => "string",
+            Value::Tuple(_) => "tuple",
+            Value::Native(_) => "function",
+            Value::Object(id) => match self.heap.get(*id) {
+                Object::Function { .. } | Object::Bound { .. } => "function",
+                Object::Class { .. } => "class",
+                Object::Instance { .. } => "instance",
+                Object::Environment { .. } => "environment",
+            },
+        }
     }
     fn display(&self, value: &Value) -> String {
         match value {

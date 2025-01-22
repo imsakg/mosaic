@@ -25,4 +25,27 @@ fn length_counts_unicode_scalars_and_tuple_items() {
     assert!(Interpreter::new().run("len();").is_err());
 }
 
+#[test]
+fn introspection_distinguishes_values_and_renders_without_coercion() {
+    assert_eq!(
+        output(
+            r#"class C {} fun f() {} print type_of(nil); print type_of(true); print type_of(3); print type_of("x"); print type_of(tuple()); print type_of(f); print type_of(clock); print type_of(C); print type_of(C()); print str(tuple(1, false));"#
+        ),
+        [
+            "nil",
+            "boolean",
+            "number",
+            "string",
+            "tuple",
+            "function",
+            "function",
+            "class",
+            "instance",
+            "(1, false)"
+        ]
+    );
+    assert!(Interpreter::new().run("str();").is_err());
+    assert!(Interpreter::new().run("type_of(1, 2);").is_err());
+}
+
 // More collection contracts.
