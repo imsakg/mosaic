@@ -155,4 +155,15 @@ fn remove_returns_an_unchanged_value_when_key_is_absent() {
     assert!(Interpreter::new().run("remove(map(), 2);").is_err());
 }
 
+#[test]
+fn keys_are_returned_in_lexicographic_order() {
+    assert_eq!(
+        output(
+            r#"var m = map(tuple("z", 1), tuple("a", 2), tuple("é", 3)); print keys(m); print keys(map()); print m == map(tuple("é", 3), tuple("z", 1), tuple("a", 2));"#
+        ),
+        ["(a, z, é)", "()", "true"]
+    );
+    assert!(Interpreter::new().run("keys(tuple());").is_err());
+}
+
 // More collection contracts.
