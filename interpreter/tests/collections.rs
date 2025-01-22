@@ -144,4 +144,15 @@ fn put_preserves_map_aliases_and_replaces_existing_keys() {
     }
 }
 
+#[test]
+fn remove_returns_an_unchanged_value_when_key_is_absent() {
+    assert_eq!(
+        output(
+            r#"var a = map(tuple("x", nil)); print has(remove(a, "x"), "x"); print has(a, "x"); print remove(a, "missing") == a; print len(remove(map(), "x"));"#
+        ),
+        ["false", "true", "true", "0"]
+    );
+    assert!(Interpreter::new().run("remove(map(), 2);").is_err());
+}
+
 // More collection contracts.
