@@ -14,4 +14,15 @@ fn tuples_are_immutable_values_with_structural_equality() {
     );
 }
 
+#[test]
+fn length_counts_unicode_scalars_and_tuple_items() {
+    assert_eq!(
+        output(r#"print len(tuple(1, 2)); print len(tuple()); print len("aé🦀"); print len("");"#),
+        ["2", "0", "3", "0"]
+    );
+    let error = Interpreter::new().run("len(7);").unwrap_err();
+    assert!(error[0].message.contains("string or tuple"));
+    assert!(Interpreter::new().run("len();").is_err());
+}
+
 // More collection contracts.
