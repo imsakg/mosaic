@@ -30,6 +30,7 @@ impl Interpreter {
             parent: None,
             values: crate::builtins::NAMES
                 .iter()
+                .chain(crate::collections::NAMES.iter())
                 .map(|&name| (name.into(), Value::Native(name)))
                 .collect(),
         });
@@ -370,7 +371,11 @@ impl Interpreter {
     }
     fn call(&mut self, value: Value, args: Vec<Value>, line: usize) -> Result<Value> {
         if let Value::Native(name) = value {
-            return crate::builtins::call(name, args, line);
+            return if crate::collections::NAMES.contains(&name) {
+                crate::collections::call(name, args, line)
+            } else {
+                crate::builtins::call(name, args, line)
+            };
         }
         if let Value::Object(id) = value {
             match self.heap.get(id).clone() {
@@ -456,6 +461,14 @@ impl Interpreter {
             Value::Number(n) => n.to_string(),
             Value::String(s) => s.to_string(),
             Value::Native(name) => format!("<native {name}>"),
+            Value::Tuple(values) => {
+                let body = values
+                    .iter()
+                    .map(|v| self.display(v))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("({body}{})", if values.len() == 1 { "," } else { "" })
+            }
             Value::Object(id) => match self.heap.get(*id) {
                 Object::Function { declaration, .. } => {
                     format!("<fn {}>", display_name(&declaration.name))

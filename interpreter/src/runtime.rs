@@ -12,10 +12,24 @@ pub(crate) enum Value {
     String(Rc<str>),
     Object(Id),
     Native(&'static str),
+    Tuple(Rc<[Value]>),
 }
 impl Value {
     pub fn truthy(&self) -> bool {
         !matches!(self, Self::Nil | Self::Bool(false))
+    }
+    pub fn collection_depth(&self) -> usize {
+        match self {
+            Self::Tuple(values) => 1 + values.iter().map(Self::collection_depth).max().unwrap_or(0),
+            _ => 0,
+        }
+    }
+    fn trace(&self, pending: &mut Vec<Id>) {
+        match self {
+            Self::Object(id) => pending.push(*id),
+            Self::Tuple(values) => values.iter().for_each(|value| value.trace(pending)),
+            _ => {}
+        }
     }
 }
 #[derive(Clone, Debug)]
@@ -112,9 +126,7 @@ impl Heap {
                 }
             }
             for value in values {
-                if let Value::Object(id) = value {
-                    pending.push(*id);
-                }
+                value.trace(&mut pending);
             }
         }
         for (id, slot) in self.slots.iter_mut().enumerate() {
