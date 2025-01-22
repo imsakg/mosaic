@@ -175,4 +175,15 @@ fn values_follow_the_same_key_order_as_keys() {
     assert!(Interpreter::new().run("values(1);").is_err());
 }
 
+#[test]
+fn entries_round_trip_through_the_map_constructor() {
+    assert_eq!(
+        output(
+            r#"var m = map(tuple("z", 1), tuple("a", tuple(2))); var pairs = entries(m); print pairs; print map(get(pairs, 0), get(pairs, 1)) == m; print entries(map());"#
+        ),
+        ["((a, (2,)), (z, 1))", "true", "()"]
+    );
+    assert!(Interpreter::new().run("entries(1);").is_err());
+}
+
 // More collection contracts.
