@@ -69,4 +69,10 @@ fn append_returns_a_new_tuple_without_mutating_aliases() {
     assert!(Interpreter::new().run("append(tuple());").is_err());
 }
 
+#[test]
+fn concatenation_preserves_order_and_nested_values() {
+    assert_eq!(output("print concat(tuple(1, 2), tuple(3)); print concat(tuple(), tuple()); print concat(tuple(tuple(1)), tuple(nil));"), ["(1, 2, 3)", "()", "((1,), nil)"]);
+    assert!(Interpreter::new().run("concat(tuple(), 1);").is_err());
+}
+
 // More collection contracts.
