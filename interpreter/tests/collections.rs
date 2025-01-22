@@ -127,4 +127,21 @@ fn map_lookup_distinguishes_absent_keys_from_stored_nil() {
     }
 }
 
+#[test]
+fn put_preserves_map_aliases_and_replaces_existing_keys() {
+    assert_eq!(
+        output(
+            r#"var a = map(tuple("x", 1)); var b = put(a, "x", 2); print get(a, "x"); print get(b, "x"); print len(put(b, "y", nil)); print has(b, "y");"#
+        ),
+        ["1", "2", "2", "false"]
+    );
+    for source in [
+        "put(map(), 1, 2);",
+        r#"put(tuple(), "x", 2);"#,
+        "put(map());",
+    ] {
+        assert!(Interpreter::new().run(source).is_err(), "{source}");
+    }
+}
+
 // More collection contracts.

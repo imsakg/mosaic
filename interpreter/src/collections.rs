@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 const MAX_ITEMS: usize = 65_536;
 const MAX_DEPTH: usize = 64;
 pub(crate) const NAMES: &[&str] = &[
-    "has", "map", "slice", "concat", "append", "get", "len", "tuple",
+    "put", "has", "map", "slice", "concat", "append", "get", "len", "tuple",
 ];
 
 fn tuple(values: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
@@ -194,6 +194,12 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
             Ok(Value::Bool(
                 map_arg(&args[0], line)?.contains_key(key_arg(&args[1], line)?),
             ))
+        }
+        "put" => {
+            arity(name, &args, 3, line)?;
+            let mut values = map_arg(&args[0], line)?.clone();
+            values.insert(key_arg(&args[1], line)?.to_owned(), args[2].clone());
+            map_value(values, line)
         }
         _ => Err(error("Unknown collection function.")),
     }
