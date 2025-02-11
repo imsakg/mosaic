@@ -93,4 +93,25 @@ fn slices_clamp_unicode_and_tuple_boundaries() {
     }
 }
 
+#[test]
+fn maps_use_string_keys_and_deterministic_value_semantics() {
+    assert_eq!(
+        output(
+            r#"print map(); print map(tuple("z", 1), tuple("a", 2)); print map(tuple("a", 1), tuple("a", 3)); print len(map(tuple("x", 1))); print type_of(map()); print map(tuple("x", 1)) == map(tuple("x", 1)); print !map();"#
+        ),
+        [
+            "{}",
+            r#"{"a": 2, "z": 1}"#,
+            r#"{"a": 3}"#,
+            "1",
+            "map",
+            "true",
+            "false"
+        ]
+    );
+    for source in ["map(1);", "map(tuple(1, 2));", "map(tuple(1));"] {
+        assert!(Interpreter::new().run(source).is_err(), "{source}");
+    }
+}
+
 // More collection contracts.

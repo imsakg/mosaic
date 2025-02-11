@@ -473,6 +473,7 @@ impl Interpreter {
             Value::Number(_) => "number",
             Value::String(_) => "string",
             Value::Tuple(_) => "tuple",
+            Value::Map(_) => "map",
             Value::Native(_) => "function",
             Value::Object(id) => match self.heap.get(*id) {
                 Object::Function { .. } | Object::Bound { .. } => "function",
@@ -489,6 +490,14 @@ impl Interpreter {
             Value::Number(n) => n.to_string(),
             Value::String(s) => s.to_string(),
             Value::Native(name) => format!("<native {name}>"),
+            Value::Map(values) => {
+                let body = values
+                    .iter()
+                    .map(|(key, value)| format!("{key:?}: {}", self.display(value)))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{{{body}}}")
+            }
             Value::Tuple(values) => {
                 let body = values
                     .iter()

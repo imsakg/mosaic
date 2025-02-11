@@ -1,10 +1,11 @@
 //! Immutable persistent collections for the tree backend.
 use crate::error::Diagnostic;
 use crate::runtime::Value;
+use std::collections::BTreeMap;
 
 const MAX_ITEMS: usize = 65_536;
 const MAX_DEPTH: usize = 64;
-pub(crate) const NAMES: &[&str] = &["slice", "concat", "append", "get", "len", "tuple"];
+pub(crate) const NAMES: &[&str] = &["map", "slice", "concat", "append", "get", "len", "tuple"];
 
 fn tuple(values: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
     if values.len() > MAX_ITEMS {
@@ -61,6 +62,38 @@ fn index_arg(value: &Value, line: usize) -> Result<f64, Diagnostic> {
         "Index must be a finite nonnegative integer.",
     ))
 }
+fn key_arg(value: &Value, line: usize) -> Result<&str, Diagnostic> {
+    if let Value::String(key) = value {
+        Ok(key)
+    } else {
+        Err(Diagnostic::new(
+            "Runtime",
+            line,
+            "Map keys must be strings.",
+        ))
+    }
+}
+fn map_value(values: BTreeMap<String, Value>, line: usize) -> Result<Value, Diagnostic> {
+    if values.len() > MAX_ITEMS {
+        return Err(Diagnostic::new(
+            "Runtime",
+            line,
+            "Collection item limit exceeded.",
+        ));
+    }
+    if values
+        .values()
+        .any(|value| value.collection_depth() >= MAX_DEPTH)
+    {
+        return Err(Diagnostic::new(
+            "Runtime",
+            line,
+            "Collection depth limit exceeded.",
+        ));
+    }
+    Ok(Value::Map(values.into()))
+}
+
 pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
     let error = |message: &str| Diagnostic::new("Runtime", line, message);
     match name {
@@ -69,6 +102,7 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
             arity(name, &args, 1, line)?;
             let length = match &args[0] {
                 Value::Tuple(values) => values.len(),
+                Value::Map(values) => values.len(),
                 Value::String(text) => text.chars().count(),
                 _ => return Err(error("len requires a string or tuple.")),
             };
@@ -127,6 +161,17 @@ pub(crate) fn call(name: &str, args: Vec<Value>, line: usize) -> Result<Value, D
                 }
                 _ => Err(error("slice requires a string or tuple.")),
             }
+        }
+        "map" => {
+            let mut values = BTreeMap::new();
+            for pair in args {
+                let pair = tuple_arg(&pair, line)?;
+                if pair.len() != 2 {
+                    return Err(error("map entries must be two-element tuples."));
+                }
+                values.insert(key_arg(&pair[0], line)?.to_owned(), pair[1].clone());
+            }
+            map_value(values, line)
         }
         _ => Err(error("Unknown collection function.")),
     }

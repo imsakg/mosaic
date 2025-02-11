@@ -1,6 +1,6 @@
 //! Traced object graph for the tree interpreter. IDs never escape a run API.
 use crate::ast::Function;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
 pub(crate) type Id = usize;
@@ -13,6 +13,7 @@ pub(crate) enum Value {
     Object(Id),
     Native(&'static str),
     Tuple(Rc<[Value]>),
+    Map(Rc<BTreeMap<String, Value>>),
 }
 impl Value {
     pub fn truthy(&self) -> bool {
@@ -21,6 +22,13 @@ impl Value {
     pub fn collection_depth(&self) -> usize {
         match self {
             Self::Tuple(values) => 1 + values.iter().map(Self::collection_depth).max().unwrap_or(0),
+            Self::Map(values) => {
+                1 + values
+                    .values()
+                    .map(Self::collection_depth)
+                    .max()
+                    .unwrap_or(0)
+            }
             _ => 0,
         }
     }
@@ -28,6 +36,7 @@ impl Value {
         match self {
             Self::Object(id) => pending.push(*id),
             Self::Tuple(values) => values.iter().for_each(|value| value.trace(pending)),
+            Self::Map(values) => values.values().for_each(|value| value.trace(pending)),
             _ => {}
         }
     }
