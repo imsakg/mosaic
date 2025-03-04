@@ -49,11 +49,12 @@ impl Session {
                 } else {
                     65
                 },
-                messages: errors.iter().map(ToString::to_string).collect(),
+                messages: errors.iter().map(|error| error.render(source)).collect(),
                 output: self.tree.output().to_vec(),
             }),
             Backend::Vm => {
-                let statements = crate::parse(source).map_err(compile_errors)?;
+                let statements =
+                    crate::parse(source).map_err(|errors| compile_errors_in(errors, source))?;
                 self.vm.run(&statements).map_err(|message| RunError {
                     code: if message.contains("Compile error:") {
                         65
@@ -73,6 +74,14 @@ impl Session {
         }
     }
 }
+pub fn compile_errors_in(errors: Vec<crate::error::Diagnostic>, source: &str) -> RunError {
+    RunError {
+        code: 65,
+        messages: errors.iter().map(|error| error.render(source)).collect(),
+        output: Vec::new(),
+    }
+}
+
 pub fn compile_errors(errors: Vec<crate::error::Diagnostic>) -> RunError {
     RunError {
         code: 65,

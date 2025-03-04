@@ -1,7 +1,7 @@
 use clap::Parser;
 use interpreter::{
     args::{Backend, Cli},
-    session::{compile_errors, RunError, Session},
+    session::{compile_errors_in, RunError, Session},
     vm::{compile_with_options, CompileOptions},
 };
 use std::io::{self, IsTerminal, Read, Write};
@@ -20,7 +20,7 @@ fn inspected(source: &str, args: &Cli) -> Result<Option<Vec<String>>, RunError> 
         let mut lexer = interpreter::lexer::Lexer::new(source.into());
         let ts = lexer.scan_tokens();
         if !lexer.errors().is_empty() {
-            return Err(compile_errors(lexer.errors().to_vec()));
+            return Err(compile_errors_in(lexer.errors().to_vec(), source));
         }
         return Ok(Some(
             ts.iter()
@@ -29,7 +29,7 @@ fn inspected(source: &str, args: &Cli) -> Result<Option<Vec<String>>, RunError> 
         ));
     }
     if args.ast || args.check || args.disassemble || args.compile_only {
-        let ss = interpreter::parse(source).map_err(compile_errors)?;
+        let ss = interpreter::parse(source).map_err(|errors| compile_errors_in(errors, source))?;
         if args.ast {
             return Ok(Some(vec![format!("{ss:#?}")]));
         }
@@ -54,7 +54,8 @@ fn inspected(source: &str, args: &Cli) -> Result<Option<Vec<String>>, RunError> 
         }
         match args.backend {
             Backend::Tree => {
-                interpreter::resolver::resolve(ss).map_err(compile_errors)?;
+                interpreter::resolver::resolve(ss)
+                    .map_err(|errors| compile_errors_in(errors, source))?;
             }
             Backend::Vm => {
                 compile_with_options(&ss, options).map_err(bytecode_error)?;
