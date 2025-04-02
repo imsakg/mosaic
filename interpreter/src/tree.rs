@@ -439,9 +439,12 @@ impl Interpreter {
         else {
             unreachable!()
         };
-        self.arity(declaration.params.len(), args.len(), line)?;
+        self.arity(declaration.params.len(), args.len(), line)
+            .map_err(|error| error.with_frame(display_name(&declaration.name), line))?;
         if self.call_depth >= 64 {
-            return Err(self.error(line, "Call depth limit exceeded."));
+            return Err(self
+                .error(line, "Call depth limit exceeded.")
+                .with_frame(display_name(&declaration.name), line));
         }
         let parent = if let Some(instance) = instance {
             let bound = self.environment(closure);
@@ -457,7 +460,8 @@ impl Interpreter {
         self.call_depth += 1;
         let result = self.in_environment(&declaration.body, env);
         self.call_depth -= 1;
-        let flow = result?;
+        let flow =
+            result.map_err(|error| error.with_frame(display_name(&declaration.name), line))?;
         if initializer {
             return self.lookup(parent, "this", line);
         }

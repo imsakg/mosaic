@@ -36,6 +36,22 @@ impl Diagnostic {
         }
         format!("{self}\n{:>4} | {excerpt}", self.line)
     }
+    /// Attach an innermost-first call frame, capping recursive diagnostics.
+    pub fn with_frame(mut self, function: &str, line: usize) -> Self {
+        if self
+            .message
+            .lines()
+            .filter(|line| line.starts_with("  at "))
+            .count()
+            < 16
+        {
+            self.message
+                .push_str(&format!("\n  at {function} (line {line})"));
+        } else if !self.message.contains("additional frames omitted") {
+            self.message.push_str("\n  … additional frames omitted");
+        }
+        self
+    }
     pub fn new(phase: &'static str, line: usize, message: impl Into<String>) -> Self {
         Self {
             phase,
