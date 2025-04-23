@@ -67,7 +67,18 @@ impl Parser {
         }
     }
     fn error(&self, message: &str) -> Diagnostic {
-        Diagnostic::new("Parse", self.peek().line, message)
+        let token = self.peek();
+        let detail = if token.token_type == T::EOF {
+            "Reached end of input.".to_owned()
+        } else {
+            let mut chars = token.lexeme.chars();
+            let mut label: String = chars.by_ref().take(40).collect();
+            if chars.next().is_some() {
+                label.push('…');
+            }
+            format!("Found {label:?}.")
+        };
+        Diagnostic::new("Parse", token.line, format!("{message} {detail}"))
     }
     fn expect(&mut self, t: &T, message: &str) -> Result<Token> {
         if self.check(t) {
