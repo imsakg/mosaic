@@ -10,6 +10,24 @@ pub(crate) const NAMES: &[&str] = &[
     "append", "get", "len", "tuple",
 ];
 
+fn check_expansion<'a>(
+    values: impl Iterator<Item = &'a Value>,
+    line: usize,
+) -> Result<(), Diagnostic> {
+    let mut expanded = 1usize;
+    for value in values {
+        expanded += value.expanded_size();
+        if expanded > 1_048_576 {
+            return Err(Diagnostic::new(
+                "Runtime",
+                line,
+                "Collection expanded size limit exceeded.",
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn tuple(values: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
     if values.len() > MAX_ITEMS {
         return Err(Diagnostic::new(
@@ -18,6 +36,7 @@ fn tuple(values: Vec<Value>, line: usize) -> Result<Value, Diagnostic> {
             "Collection item limit exceeded.",
         ));
     }
+    check_expansion(values.iter(), line)?;
     if values
         .iter()
         .any(|value| value.collection_depth() >= MAX_DEPTH)
@@ -84,6 +103,7 @@ fn map_value(values: BTreeMap<String, Value>, line: usize) -> Result<Value, Diag
             "Collection item limit exceeded.",
         ));
     }
+    check_expansion(values.values(), line)?;
     if values
         .values()
         .any(|value| value.collection_depth() >= MAX_DEPTH)

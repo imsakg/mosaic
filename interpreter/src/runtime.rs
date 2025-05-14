@@ -19,6 +19,23 @@ impl Value {
     pub fn truthy(&self) -> bool {
         !matches!(self, Self::Nil | Self::Bool(false))
     }
+    pub fn expanded_size(&self) -> usize {
+        const BUDGET: usize = 1_048_577;
+        fn visit(value: &Value, remaining: &mut usize) -> bool {
+            if *remaining == 0 {
+                return false;
+            }
+            *remaining -= 1;
+            match value {
+                Value::Tuple(values) => values.iter().all(|value| visit(value, remaining)),
+                Value::Map(values) => values.values().all(|value| visit(value, remaining)),
+                _ => true,
+            }
+        }
+        let mut remaining = BUDGET;
+        visit(self, &mut remaining);
+        BUDGET - remaining
+    }
     pub fn collection_depth(&self) -> usize {
         match self {
             Self::Tuple(values) => 1 + values.iter().map(Self::collection_depth).max().unwrap_or(0),
