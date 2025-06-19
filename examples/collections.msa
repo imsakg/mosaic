@@ -1,0 +1,19 @@
+// Count words with persistent maps and immutable tuple input.
+var words = split("pear apple pear", " ");
+var counts = map();
+for (var i = 0; i < len(words); i = i + 1) {
+    var word = get(words, i);
+    var count = 0;
+    if (has(counts, word)) count = get(counts, word);
+    counts = put(counts, word, count + 1);
+}
+print keys(counts);
+print values(counts);
+print entries(counts);
+
+var longer = append(words, "kiwi");
+assert(len(words) == 3, "append must preserve its input");
+assert(len(longer) == 4);
+print join(words, "|");
+print slice("aé🦀z", 1, 3);
+print type_of(counts);
